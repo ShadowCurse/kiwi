@@ -3,7 +3,7 @@ const MAX_ENTITIES: u16 = std::u16::MAX;
 type EntityGeneration = u16;
 type EntityId = u16;
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Entity {
     id: u16,
     gen: u16,
