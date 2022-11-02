@@ -2,6 +2,7 @@ mod archetype;
 mod entity;
 mod sparse_set;
 mod table;
+mod blobvec;
 
 use std::collections::HashMap;
 
@@ -10,7 +11,10 @@ use entity::{Entity, EntityGenerator};
 use table::{TableId, TableStorage};
 
 pub enum EcsError {
-    ComponentDuplicate,
+    AddingComponentDuplicate,
+    RemovingNonExistingComponent,
+    InsertingArchetypeDuplicate,
+    RemovingNonExistingArchetype,
 }
 
 pub struct Ecs {
@@ -47,4 +51,8 @@ impl Ecs {
     ) -> Result<(), EcsError> {
         todo!()
     }
+
+    // pub fn query(&self, query: Archetype) -> impl Iterator<Item = ()> {
+    //     todo!()
+    // }
 }

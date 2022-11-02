@@ -1,8 +1,11 @@
-use crate::sparse_set::SparseSet;
+use std::{collections::HashMap, any::TypeId};
+
+use crate::{sparse_set::SparseSet, blobvec::BlobVec};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct TableId(usize);
 
+#[derive(Debug, Default)]
 pub struct TableStorage {
     tables: SparseSet<Table>,
 }
@@ -21,5 +24,8 @@ impl TableStorage {
     }
 }
 
-pub struct Table {}
+#[derive(Debug, Default)]
+pub struct Table {
+    columns: HashMap<TypeId, BlobVec>,
+}
 
