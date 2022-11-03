@@ -15,6 +15,10 @@ pub enum EcsError {
     RemovingNonExistingComponent,
     InsertingArchetypeDuplicate,
     RemovingNonExistingArchetype,
+    TableDoesNotExist,
+    TableDoesNotContainComponentColumn,
+    TableRegisteringDuplicatedComponent,
+    TableAlreadyAssignedArchetype,
 }
 
 pub struct Ecs {
