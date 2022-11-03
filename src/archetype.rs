@@ -77,16 +77,16 @@ impl Archetypes {
         Ok(archetype_id)
     }
 
-    pub fn contains(&self, archetype: &Archetype) -> bool {
-        todo!()
+    pub fn get(&self, archetype_id: ArchetypeId) -> Option<&Archetype> {
+        self.archetypes.get(archetype_id.0)
     }
 
-    pub fn get(&self, archetype_id: ArchetypeId) -> Archetype {
-        todo!()
+    pub fn get_mut(&mut self, archetype_id: ArchetypeId) -> Option<&mut Archetype> {
+        self.archetypes.get_mut(archetype_id.0)
     }
 
     pub fn get_id(&self, archetype: &Archetype) -> Option<ArchetypeId> {
-        todo!()
+        self.component_trie.search(archetype)
     }
 }
 
