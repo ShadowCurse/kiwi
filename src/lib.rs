@@ -10,14 +10,23 @@ use archetype::{Archetype, ArchetypeId, Archetypes};
 use entity::{Entity, EntityGenerator};
 use table::{TableId, TableStorage};
 
+#[derive(Debug, thiserror::Error)]
 pub enum EcsError {
+    #[error("Adding component dublicate to the archetype")]
     AddingComponentDuplicate,
+    #[error("Removing non existing component form the archetype")]
     RemovingNonExistingComponent,
+    #[error("Inserting archetype dublicate in component trie")]
     InsertingArchetypeDuplicate,
+    #[error("Removing non existing archetype from component trie")]
     RemovingNonExistingArchetype,
+    #[error("Table does not exist in the TableStorage")]
     TableDoesNotExist,
+    #[error("Table does not contain component column")]
     TableDoesNotContainComponentColumn,
+    #[error("Table already has column for this type")]
     TableRegisteringDuplicatedComponent,
+    #[error("Table already has the archetype assigned to it")]
     TableAlreadyAssignedArchetype,
 }
 
