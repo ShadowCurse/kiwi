@@ -1,3 +1,4 @@
+use std::alloc::Layout;
 use std::any::TypeId;
 use std::collections::HashSet;
 
@@ -7,9 +8,24 @@ use crate::EcsError;
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct ArchetypeId(usize);
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct ComponentInfo {
+    pub id: TypeId,
+    pub layout: Layout,
+}
+
+impl ComponentInfo {
+    pub fn new<T: 'static>() -> Self {
+        Self {
+            id: TypeId::of::<T>(),
+            layout: Layout::new::<T>(),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Archetype {
-    components: HashSet<TypeId>,
+    components: HashSet<ComponentInfo>,
 }
 
 impl Archetype {
@@ -22,23 +38,27 @@ impl Archetype {
     }
 
     pub fn add_component<T: 'static>(&mut self) -> Result<(), EcsError> {
-        let component_id = std::any::TypeId::of::<T>();
-        match self.components.insert(component_id) {
+        let component_info = ComponentInfo::new::<T>();
+        match self.components.insert(component_info) {
             true => Ok(()),
             false => Err(EcsError::AddingComponentDuplicate),
         }
     }
 
     pub fn remove_component<T: 'static>(&mut self) -> Result<(), EcsError> {
-        let component_id = std::any::TypeId::of::<T>();
-        match self.components.remove(&component_id) {
+        let component_info = ComponentInfo::new::<T>();
+        match self.components.remove(&component_info) {
             true => Ok(()),
             false => Err(EcsError::RemovingNonExistingComponent),
         }
     }
 
-    pub fn into_sorted_vec(&self) -> Vec<TypeId> {
-        let mut vec = self.components.iter().copied().collect::<Vec<_>>();
+    pub fn iter(&self) -> impl Iterator<Item = &ComponentInfo> {
+        self.components.iter()
+    }
+
+    pub fn as_sorted_vec_of_type_ids(&self) -> Vec<TypeId> {
+        let mut vec = self.components.iter().map(|info| info.id).collect::<Vec<_>>();
         vec.sort_unstable();
         vec
     }
@@ -81,17 +101,17 @@ impl ComponentTrie {
         archetype: &Archetype,
         archetype_id: ArchetypeId,
     ) -> Result<(), EcsError> {
-        let components = archetype.into_sorted_vec();
+        let components = archetype.as_sorted_vec_of_type_ids();
         Self::recursive_insert(&mut self.root_nodes, &components, 0, archetype_id)
     }
 
     pub fn remove(&mut self, archetype: &Archetype) -> Result<(), EcsError> {
-        let components = archetype.into_sorted_vec();
+        let components = archetype.as_sorted_vec_of_type_ids();
         Self::recursive_remove(&mut self.root_nodes, &components, 0)
     }
 
     pub fn search(&self, archetype: &Archetype) -> Option<ArchetypeId> {
-        let components = archetype.into_sorted_vec();
+        let components = archetype.as_sorted_vec_of_type_ids();
         Self::recursive_search(&self.root_nodes, &components, 0)
     }
 
@@ -190,7 +210,7 @@ impl ComponentNode {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     struct A {}
