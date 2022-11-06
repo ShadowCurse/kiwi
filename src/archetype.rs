@@ -66,14 +66,14 @@ impl Archetype {
 
 pub struct Archetypes {
     archetypes: SparseSet<Archetype>,
-    component_trie: ComponentTrie,
+    archetypes_trie: ArchetypesTrie,
 }
 
 impl Archetypes {
     pub fn insert(&mut self, archetype: Archetype) -> Result<ArchetypeId, EcsError>{
         let archetype_id = ArchetypeId(self.archetypes.insert(archetype));
         let arc = self.archetypes.get(archetype_id.0).unwrap();
-        self.component_trie.insert(arc, archetype_id)?;
+        self.archetypes_trie.insert(arc, archetype_id)?;
         Ok(archetype_id)
     }
 
@@ -86,16 +86,16 @@ impl Archetypes {
     }
 
     pub fn get_id(&self, archetype: &Archetype) -> Option<ArchetypeId> {
-        self.component_trie.search(archetype)
+        self.archetypes_trie.search(archetype)
     }
 }
 
 #[derive(Debug, Default)]
-pub struct ComponentTrie {
-    root_nodes: Vec<ComponentNode>,
+pub struct ArchetypesTrie {
+    root_nodes: Vec<ArchetypeNode>,
 }
 
-impl ComponentTrie {
+impl ArchetypesTrie {
     pub fn insert(
         &mut self,
         archetype: &Archetype,
@@ -116,7 +116,7 @@ impl ComponentTrie {
     }
 
     fn recursive_insert(
-        nodes: &mut Vec<ComponentNode>,
+        nodes: &mut Vec<ArchetypeNode>,
         components: &[TypeId],
         index: usize,
         archetype_id: ArchetypeId,
@@ -126,21 +126,21 @@ impl ComponentTrie {
             nodes.binary_search_by_key(&components[index], |node| node.component),
         ) {
             (false, Ok(i)) => Self::recursive_insert(
-                &mut nodes[i].following_components,
+                &mut nodes[i].following_nodes,
                 components,
                 index + 1,
                 archetype_id,
             ),
             (true, Ok(_)) => Err(EcsError::InsertingArchetypeDuplicate),
             (last, Err(i)) => {
-                let node = ComponentNode::new(components[index]);
+                let node = ArchetypeNode::new(components[index]);
                 nodes.insert(i, node);
                 if last {
-                    nodes[i].archetype = Some(archetype_id);
+                    nodes[i].archetype_id = Some(archetype_id);
                     Ok(())
                 } else {
                     Self::recursive_insert(
-                        &mut nodes[i].following_components,
+                        &mut nodes[i].following_nodes,
                         components,
                         index + 1,
                         archetype_id,
@@ -151,7 +151,7 @@ impl ComponentTrie {
     }
 
     fn recursive_remove(
-        nodes: &mut Vec<ComponentNode>,
+        nodes: &mut Vec<ArchetypeNode>,
         components: &[TypeId],
         index: usize,
     ) -> Result<(), EcsError> {
@@ -160,13 +160,13 @@ impl ComponentTrie {
             nodes.binary_search_by_key(&components[index], |node| node.component),
         ) {
             (false, Ok(i)) => {
-                Self::recursive_remove(&mut nodes[i].following_components, components, index + 1)
+                Self::recursive_remove(&mut nodes[i].following_nodes, components, index + 1)
             }
             (true, Ok(i)) => {
-                if nodes[i].following_components.is_empty() {
+                if nodes[i].following_nodes.is_empty() {
                     nodes.remove(i);
                 } else {
-                    nodes[i].archetype = None;
+                    nodes[i].archetype_id = None;
                 }
                 Ok(())
             }
@@ -175,7 +175,7 @@ impl ComponentTrie {
     }
 
     fn recursive_search(
-        nodes: &[ComponentNode],
+        nodes: &[ArchetypeNode],
         components: &[TypeId],
         index: usize,
     ) -> Option<ArchetypeId> {
@@ -184,27 +184,27 @@ impl ComponentTrie {
             nodes.binary_search_by_key(&components[index], |node| node.component),
         ) {
             (false, Ok(i)) => {
-                Self::recursive_search(&nodes[i].following_components, components, index + 1)
+                Self::recursive_search(&nodes[i].following_nodes, components, index + 1)
             }
-            (true, Ok(i)) => nodes[i].archetype,
+            (true, Ok(i)) => nodes[i].archetype_id,
             (_, Err(_)) => None,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct ComponentNode {
+pub struct ArchetypeNode {
     component: TypeId,
-    archetype: Option<ArchetypeId>,
-    following_components: Vec<ComponentNode>,
+    archetype_id: Option<ArchetypeId>,
+    following_nodes: Vec<ArchetypeNode>,
 }
 
-impl ComponentNode {
+impl ArchetypeNode {
     pub fn new(component: TypeId) -> Self {
         Self {
             component,
-            archetype: None,
-            following_components: Vec::new(),
+            archetype_id: None,
+            following_nodes: Vec::new(),
         }
     }
 }
@@ -248,7 +248,7 @@ mod test {
 
     #[test]
     fn component_trie_insert() {
-        let mut trie = ComponentTrie::default();
+        let mut trie = ArchetypesTrie::default();
         let mut arc = Archetype::default();
         let some_arc_id = ArchetypeId(0);
 
@@ -292,7 +292,7 @@ mod test {
 
     #[test]
     fn component_trie_search() {
-        let mut trie = ComponentTrie::default();
+        let mut trie = ArchetypesTrie::default();
         let mut arc = Archetype::default();
 
         let some_arc_id = ArchetypeId(0);
