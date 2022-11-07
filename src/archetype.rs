@@ -1,6 +1,7 @@
 use std::alloc::Layout;
 use std::any::TypeId;
-use std::collections::HashSet;
+use std::cmp::Ordering;
+use std::collections::{HashSet, VecDeque};
 
 use crate::sparse_set::SparseSet;
 use crate::EcsError;
@@ -58,7 +59,11 @@ impl Archetype {
     }
 
     pub fn as_sorted_vec_of_type_ids(&self) -> Vec<TypeId> {
-        let mut vec = self.components.iter().map(|info| info.id).collect::<Vec<_>>();
+        let mut vec = self
+            .components
+            .iter()
+            .map(|info| info.id)
+            .collect::<Vec<_>>();
         vec.sort_unstable();
         vec
     }
@@ -70,7 +75,7 @@ pub struct Archetypes {
 }
 
 impl Archetypes {
-    pub fn insert(&mut self, archetype: Archetype) -> Result<ArchetypeId, EcsError>{
+    pub fn insert(&mut self, archetype: Archetype) -> Result<ArchetypeId, EcsError> {
         let archetype_id = ArchetypeId(self.archetypes.insert(archetype));
         let arc = self.archetypes.get(archetype_id.0).unwrap();
         self.archetypes_trie.insert(arc, archetype_id)?;
@@ -115,6 +120,10 @@ impl ArchetypesTrie {
         Self::recursive_search(&self.root_nodes, &components, 0)
     }
 
+    pub fn query(&self, sub_suquence: &Archetype) -> impl Iterator<Item = ArchetypeId> + '_ {
+        ArchetypesTrieQueryIterator::new(&self.root_nodes, sub_suquence.as_sorted_vec_of_type_ids())
+    }
+
     fn recursive_insert(
         nodes: &mut Vec<ArchetypeNode>,
         components: &[TypeId],
@@ -123,7 +132,7 @@ impl ArchetypesTrie {
     ) -> Result<(), EcsError> {
         match (
             index == components.len() - 1,
-            nodes.binary_search_by_key(&components[index], |node| node.component),
+            nodes.binary_search_by_key(&components[index], |node| node.component_id),
         ) {
             (false, Ok(i)) => Self::recursive_insert(
                 &mut nodes[i].following_nodes,
@@ -157,7 +166,7 @@ impl ArchetypesTrie {
     ) -> Result<(), EcsError> {
         match (
             index == components.len() - 1,
-            nodes.binary_search_by_key(&components[index], |node| node.component),
+            nodes.binary_search_by_key(&components[index], |node| node.component_id),
         ) {
             (false, Ok(i)) => {
                 Self::recursive_remove(&mut nodes[i].following_nodes, components, index + 1)
@@ -181,7 +190,7 @@ impl ArchetypesTrie {
     ) -> Option<ArchetypeId> {
         match (
             index == components.len() - 1,
-            nodes.binary_search_by_key(&components[index], |node| node.component),
+            nodes.binary_search_by_key(&components[index], |node| node.component_id),
         ) {
             (false, Ok(i)) => {
                 Self::recursive_search(&nodes[i].following_nodes, components, index + 1)
@@ -194,7 +203,7 @@ impl ArchetypesTrie {
 
 #[derive(Debug)]
 pub struct ArchetypeNode {
-    component: TypeId,
+    component_id: TypeId,
     archetype_id: Option<ArchetypeId>,
     following_nodes: Vec<ArchetypeNode>,
 }
@@ -202,10 +211,92 @@ pub struct ArchetypeNode {
 impl ArchetypeNode {
     pub fn new(component: TypeId) -> Self {
         Self {
-            component,
+            component_id: component,
             archetype_id: None,
             following_nodes: Vec::new(),
         }
+    }
+}
+
+#[derive(Debug)]
+struct ArchetypesTrieQueryIteratorEntry<'a> {
+    node: &'a ArchetypeNode,
+    component_index: usize,
+}
+
+struct ArchetypesTrieQueryIterator<'a> {
+    entries: VecDeque<ArchetypesTrieQueryIteratorEntry<'a>>,
+    components: Vec<TypeId>,
+    found_nodes: VecDeque<&'a ArchetypeNode>,
+}
+
+impl<'a> ArchetypesTrieQueryIterator<'a> {
+    pub fn new(initial_nodes: &'a [ArchetypeNode], components: Vec<TypeId>) -> Self {
+        let nodes = initial_nodes
+            .iter()
+            .map(|node| ArchetypesTrieQueryIteratorEntry {
+                node,
+                component_index: 0,
+            })
+            .collect();
+        Self {
+            entries: nodes,
+            components,
+            found_nodes: VecDeque::new(),
+        }
+    }
+}
+
+impl Iterator for ArchetypesTrieQueryIterator<'_> {
+    type Item = ArchetypeId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(node) = self.found_nodes.pop_front() {
+            for node in node.following_nodes.iter() {
+                self.found_nodes.push_back(node);
+            }
+            match node.archetype_id {
+                Some(archetype) => return Some(archetype),
+                None => continue,
+            }
+        }
+        while let Some(entry) = self.entries.pop_front() {
+            match entry
+                .node
+                .component_id
+                .cmp(&self.components[entry.component_index])
+            {
+                Ordering::Greater => continue,
+                Ordering::Less => {
+                    for node in entry.node.following_nodes.iter() {
+                        self.entries.push_back(ArchetypesTrieQueryIteratorEntry {
+                            node,
+                            component_index: entry.component_index,
+                        });
+                    }
+                }
+                Ordering::Equal => {
+                    if entry.component_index == self.components.len() - 1 {
+                        // return every node starting from this root
+                        for node in entry.node.following_nodes.iter() {
+                            self.found_nodes.push_back(node);
+                        }
+                        match entry.node.archetype_id {
+                            Some(archetype) => return Some(archetype),
+                            None => continue,
+                        }
+                    } else {
+                        for node in entry.node.following_nodes.iter() {
+                            self.entries.push_back(ArchetypesTrieQueryIteratorEntry {
+                                node,
+                                component_index: entry.component_index + 1,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 }
 
@@ -323,5 +414,55 @@ mod test {
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<D>();
         assert_eq!(trie.search(&arc), None);
+    }
+
+    #[test]
+    fn component_trie_query() {
+        let mut trie = ArchetypesTrie::default();
+        let mut arc = Archetype::default();
+
+        let some_arc_id = ArchetypeId(0);
+        let _ = arc.add_component::<A>();
+        let _ = arc.add_component::<B>();
+        let _ = arc.add_component::<C>();
+        assert!(trie.insert(&arc, some_arc_id).is_ok());
+
+        let some_arc_id = ArchetypeId(1);
+        let mut arc = Archetype::default();
+        let _ = arc.add_component::<B>();
+        let _ = arc.add_component::<C>();
+        let _ = arc.add_component::<D>();
+        assert!(trie.insert(&arc, some_arc_id).is_ok());
+
+        let some_arc_id = ArchetypeId(2);
+        let mut arc = Archetype::default();
+        let _ = arc.add_component::<A>();
+        let _ = arc.add_component::<C>();
+        let _ = arc.add_component::<D>();
+        assert!(trie.insert(&arc, some_arc_id).is_ok());
+
+        let some_arc_id = ArchetypeId(3);
+        let mut arc = Archetype::default();
+        let _ = arc.add_component::<A>();
+        let _ = arc.add_component::<B>();
+        let _ = arc.add_component::<D>();
+        assert!(trie.insert(&arc, some_arc_id).is_ok());
+
+        let mut arc = Archetype::default();
+        let _ = arc.add_component::<B>();
+        let _ = arc.add_component::<C>();
+        let ids = trie.query(&arc).collect::<HashSet<_>>();
+        assert_eq!(
+            ids,
+            HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())
+        );
+
+        let mut arc = Archetype::default();
+        let _ = arc.add_component::<A>();
+        let ids = trie.query(&arc).collect::<HashSet<_>>();
+        assert_eq!(
+            ids,
+            HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(2), ArchetypeId(3)].into_iter())
+        );
     }
 }
