@@ -3,6 +3,7 @@ mod entity;
 mod sparse_set;
 mod table;
 mod blobvec;
+mod system;
 
 use std::collections::HashMap;
 
