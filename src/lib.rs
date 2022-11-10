@@ -1,9 +1,12 @@
+#![feature(const_type_id)]
+
 mod archetype;
 mod entity;
 mod sparse_set;
 mod table;
 mod blobvec;
 mod system;
+mod query;
 
 use std::collections::HashMap;
 
