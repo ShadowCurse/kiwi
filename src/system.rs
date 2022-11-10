@@ -63,6 +63,20 @@ where
     }
 }
 
+macro_rules! impl_system_param_func {
+    ($($t:ident),*) => {
+        impl<F, $($t),*> SystemParameterFunction<($($t, )*)> for F
+        where
+            F: Fn($($t),*) + 'static,
+            $($t: SystemParameter),*,
+        {
+            fn run(&mut self) {
+
+            }
+        }
+    };
+}
+
 impl<F> SystemParameterFunction<()> for F
 where
     F: Fn() + 'static,
@@ -72,41 +86,37 @@ where
     }
 }
 
-impl<F, P1> SystemParameterFunction<(P1,)> for F
-where
-    F: Fn(P1) + 'static,
-    P1: SystemParameter,
-{
-    fn run(&mut self) {
-        eprintln!("callig function with one system parameter is not implemented yet");
-    }
+impl_system_param_func!(P1);
+impl_system_param_func!(P1, P2);
+impl_system_param_func!(P1, P2, P3);
+impl_system_param_func!(P1, P2, P3, P4);
+impl_system_param_func!(P1, P2, P3, P4, P5);
+
+macro_rules! impl_system_param_for_type {
+    ($t:ty) => {
+        impl SystemParameter for $t {}
+    };
 }
 
-impl<F, P1, P2> SystemParameterFunction<(P1, P2)> for F
-where
-    F: Fn(P1, P2) + 'static,
-    P1: SystemParameter,
-    P2: SystemParameter,
-{
-    fn run(&mut self) {
-        eprintln!("callig function with two system parameters is not implemented yet");
-    }
+macro_rules! impl_system_param_tuple {
+    ($($t:ident),*) => {
+        impl<$($t),*> SystemParameter for ($($t, )*) where $($t: SystemParameter),*, {}
+    };
 }
 
-impl SystemParameter for () {}
-impl<P> SystemParameter for (P,) where P: SystemParameter {}
-impl<P1, P2> SystemParameter for (P1, P2)
-where
-    P1: SystemParameter,
-    P2: SystemParameter,
-{
-}
+impl_system_param_for_type!(());
+
+impl_system_param_tuple!(P1);
+impl_system_param_tuple!(P1, P2);
+impl_system_param_tuple!(P1, P2, P3);
+impl_system_param_tuple!(P1, P2, P3, P4);
+impl_system_param_tuple!(P1, P2, P3, P4, P5);
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    impl SystemParameter for u32 {}
+    impl_system_param_for_type!(u32);
 
     #[test]
     fn add_systems() {
