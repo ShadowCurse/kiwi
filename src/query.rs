@@ -1,8 +1,6 @@
-use std::{any::TypeId, marker::PhantomData};
+use std::any::TypeId;
 
-use crate::system::SystemParameter;
-
-pub trait ComponentTuple<const L: usize> {
+pub trait Query<const L: usize> {
     const IDS: [TypeId; L];
     fn ids() -> &'static [TypeId] {
         &Self::IDS
@@ -19,9 +17,9 @@ macro_rules! count_tts {
     ($($tts:tt)*) => {0usize $(+ replace_expr!($tts 1usize))*};
 }
 
-macro_rules! impl_component {
+macro_rules! impl_query {
     ($($t:ident),*) => {
-        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for ($($t,)*)
+        impl<$($t),*> Query<{count_tts!($($t)*)}> for ($($t,)*)
         where
             $($t: 'static),*,
         {
@@ -30,18 +28,11 @@ macro_rules! impl_component {
     };
 }
 
-impl_component!(C1);
-impl_component!(C1, C2);
-impl_component!(C1, C2, C4);
-impl_component!(C1, C2, C4, C5);
-impl_component!(C1, C2, C4, C5, C6);
-
-#[derive(Debug, Default)]
-pub struct Query<T: ComponentTuple<L>, const L: usize> {
-    phantom: PhantomData<T>,
-}
-
-impl<T: ComponentTuple<L>, const L: usize> SystemParameter for Query<T, L> {}
+impl_query!(C1);
+impl_query!(C1, C2);
+impl_query!(C1, C2, C4);
+impl_query!(C1, C2, C4, C5);
+impl_query!(C1, C2, C4, C5, C6);
 
 #[cfg(test)]
 mod test {
@@ -49,6 +40,13 @@ mod test {
 
     #[test]
     fn query() {
-        let _query = Query::<(u8, bool, i32), 3>::default();
+        assert_eq!(
+            <(u8, bool, i32) as Query<3>>::ids(),
+            &[
+                TypeId::of::<u8>(),
+                TypeId::of::<bool>(),
+                TypeId::of::<i32>()
+            ]
+        );
     }
 }
