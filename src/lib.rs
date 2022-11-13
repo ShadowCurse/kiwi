@@ -1,12 +1,15 @@
 #![feature(const_type_id)]
+#![feature(fn_traits)]
 
 mod archetype;
-mod entity;
-mod sparse_set;
-mod table;
 mod blobvec;
-mod system;
+mod component;
+mod entity;
 mod query;
+mod sparse_set;
+mod system;
+mod table;
+mod utils;
 
 use std::collections::HashMap;
 
@@ -61,11 +64,8 @@ impl Ecs {
     }
 
     /// Removes component from the entity
-    /// Returns error if component does not exist 
-    pub fn remove_component<T: 'static>(
-        &mut self,
-        entity: Entity,
-    ) -> Result<(), EcsError> {
+    /// Returns error if component does not exist
+    pub fn remove_component<T: 'static>(&mut self, entity: Entity) -> Result<(), EcsError> {
         todo!()
     }
 
