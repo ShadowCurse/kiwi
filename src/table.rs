@@ -1,7 +1,10 @@
 use std::{any::TypeId, collections::HashMap};
 
 use crate::{
-    archetype::ComponentInfo, blobvec::BlobVec, sparse_set::SparseSet, Archetype, EcsError,
+    blobvec::BlobVec,
+    component::{Component, ComponentInfo},
+    sparse_set::SparseSet,
+    Archetype, EcsError,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -50,7 +53,7 @@ impl TableStorage {
         todo!()
     }
 
-    pub fn insert_component<T: 'static>(
+    pub fn insert_component<T: Component>(
         &mut self,
         table_id: TableId,
         component: T,
@@ -83,7 +86,7 @@ impl Table {
         }
     }
 
-    pub fn insert_component<T: 'static>(&mut self, component: T) -> Result<(), EcsError> {
+    pub fn insert_component<T: Component>(&mut self, component: T) -> Result<(), EcsError> {
         let type_id = TypeId::of::<T>();
         match self.columns.get_mut(&type_id) {
             Some(column) => {
