@@ -1,28 +1,13 @@
-use std::alloc::Layout;
 use std::any::TypeId;
 use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 
+use crate::component::{Component, ComponentInfo};
 use crate::sparse_set::SparseSet;
 use crate::EcsError;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct ArchetypeId(usize);
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct ComponentInfo {
-    pub id: TypeId,
-    pub layout: Layout,
-}
-
-impl ComponentInfo {
-    pub fn new<T: 'static>() -> Self {
-        Self {
-            id: TypeId::of::<T>(),
-            layout: Layout::new::<T>(),
-        }
-    }
-}
 
 #[derive(Debug, Default)]
 pub struct Archetype {
@@ -38,7 +23,7 @@ impl Archetype {
         self.components.is_empty()
     }
 
-    pub fn add_component<T: 'static>(&mut self) -> Result<(), EcsError> {
+    pub fn add_component<T: Component>(&mut self) -> Result<(), EcsError> {
         let component_info = ComponentInfo::new::<T>();
         match self.components.insert(component_info) {
             true => Ok(()),
@@ -46,7 +31,7 @@ impl Archetype {
         }
     }
 
-    pub fn remove_component<T: 'static>(&mut self) -> Result<(), EcsError> {
+    pub fn remove_component<T: Component>(&mut self) -> Result<(), EcsError> {
         let component_info = ComponentInfo::new::<T>();
         match self.components.remove(&component_info) {
             true => Ok(()),
@@ -308,6 +293,11 @@ mod test {
     struct B {}
     struct C {}
     struct D {}
+
+    impl Component for A {}
+    impl Component for B {}
+    impl Component for C {}
+    impl Component for D {}
 
     #[test]
     fn archetype_create() {
