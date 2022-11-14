@@ -1,10 +1,14 @@
 use std::marker::PhantomData;
 
+use crate::Ecs;
+
 pub trait System: 'static {
-    fn run(&mut self);
+    fn run(&mut self, ecs: &Ecs);
 }
 
-pub trait SystemParameter {}
+pub trait SystemParameter {
+    fn new(ecs: &Ecs) -> Self;
+}
 
 pub trait IntoSystem<Params> {
     type Output: System;
@@ -13,7 +17,7 @@ pub trait IntoSystem<Params> {
 }
 
 pub trait SystemParameterFunction<Parameter: SystemParameter>: 'static {
-    fn run(&mut self);
+    fn run(&mut self, params: Parameter);
 }
 
 #[derive(Default)]
@@ -26,9 +30,9 @@ impl Systems {
         self.systems.push(Box::new(system.into_system()));
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, ecs: &Ecs) {
         for system in self.systems.iter_mut() {
-            system.run();
+            system.run(ecs);
         }
     }
 }
@@ -58,8 +62,9 @@ where
     F: SystemParameterFunction<P> + 'static,
     P: SystemParameter + 'static,
 {
-    fn run(&mut self) {
-        self.system.run()
+    fn run(&mut self, ecs: &Ecs) {
+        let params = P::new(ecs);
+        self.system.run(params);
     }
 }
 
@@ -70,8 +75,11 @@ macro_rules! impl_system_param_func {
             F: Fn($($t),*) + 'static,
             $($t: SystemParameter),*,
         {
-            fn run(&mut self) {
-
+            fn run(&mut self, params: ($($t, )*)) {
+                // TODO
+                // maybe try with tuple unpacking
+                // to avoid relying of nightly features
+                self.call(params);
             }
         }
     };
@@ -81,7 +89,7 @@ impl<F> SystemParameterFunction<()> for F
 where
     F: Fn() + 'static,
 {
-    fn run(&mut self) {
+    fn run(&mut self, _: ()) {
         self()
     }
 }
@@ -92,19 +100,24 @@ impl_system_param_func!(P1, P2, P3);
 impl_system_param_func!(P1, P2, P3, P4);
 impl_system_param_func!(P1, P2, P3, P4, P5);
 
-macro_rules! impl_system_param_for_type {
-    ($t:ty) => {
-        impl SystemParameter for $t {}
-    };
-}
-
 macro_rules! impl_system_param_tuple {
     ($($t:ident),*) => {
-        impl<$($t),*> SystemParameter for ($($t, )*) where $($t: SystemParameter),*, {}
+        impl<$($t),*> SystemParameter for ($($t, )*) where $($t: SystemParameter),*, {
+            fn new(ecs: &Ecs) -> Self {
+                (
+                    $($t::new(ecs)),*
+                    ,
+                )
+            }
+        }
     };
 }
 
-impl_system_param_for_type!(());
+impl SystemParameter for () {
+    fn new(_: &Ecs) -> Self {
+        ()
+    }
+}
 
 impl_system_param_tuple!(P1);
 impl_system_param_tuple!(P1, P2);
@@ -116,20 +129,34 @@ impl_system_param_tuple!(P1, P2, P3, P4, P5);
 mod test {
     use super::*;
 
-    impl_system_param_for_type!(u32);
+    impl SystemParameter for bool {
+        fn new(_: &Ecs) -> Self {
+            true
+        }
+    }
+
+    impl SystemParameter for u32 {
+        fn new(_: &Ecs) -> Self {
+            0
+        }
+    }
 
     #[test]
-    fn add_systems() {
+    fn add_and_run_systems() {
         fn test_sys() {}
         fn test_sys_u32(_: u32) {}
         fn test_sys_void_and_u32(_: (), _: u32) {}
+        fn test_sys_tuples(_: ((), u32), _: (bool, bool)) {}
+
+        let ecs = Ecs::default();
 
         let mut systems = Systems::default();
 
         systems.add_system(test_sys);
         systems.add_system(test_sys_u32);
         systems.add_system(test_sys_void_and_u32);
+        systems.add_system(test_sys_tuples);
 
-        systems.run();
+        systems.run(&ecs);
     }
 }
