@@ -1,6 +1,6 @@
 use std::{any::TypeId, marker::PhantomData};
 
-use crate::{component::Component, system::SystemParameter, utils::static_sort, count_tts};
+use crate::{component::Component, count_tts, system::SystemParameter, utils::static_sort, Ecs};
 
 pub trait TupleIds<const L: usize> {
     const IDS: [TypeId; L];
@@ -9,13 +9,47 @@ pub trait TupleIds<const L: usize> {
     }
 }
 
-struct Query<T> {
+struct Query<'esc, T> {
+    esc: &'esc Ecs,
     phantom: PhantomData<T>,
+}
+
+impl<T> Query<'_, T> {
+    pub fn iter(&self) -> impl Iterator<Item = T> {
+        todo!()
+    }
+}
+
+impl<T> SystemParameter for Query<'_, T> {
+    fn new(esc: &Ecs) -> Self {
+        Query {
+            esc,
+            phantom: PhantomData,
+        }
+    }
+}
+
+struct QueryIter<Iter, T>
+where
+    Iter: Iterator<Item = T>,
+{
+    inner_iter: Iter,
+}
+
+impl<Iter, T> Iterator for QueryIter<Iter, T>
+where
+    Iter: Iterator<Item = T>,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner_iter.next()
+    }
 }
 
 macro_rules! impl_tuple_ids_for_query {
     ($($t:ident),*) => {
-        impl<$($t),*> TupleIds<{count_tts!($($t)*)}> for Query<($($t,)*)>
+        impl<$($t),*> TupleIds<{count_tts!($($t)*)}> for Query<'_, ($($t,)*)>
         where
             $($t: Component),*,
         {
@@ -38,8 +72,6 @@ macro_rules! impl_tuple_ids_for_query {
 
     };
 }
-
-impl<T> SystemParameter for Query<T> {}
 
 impl_tuple_ids_for_query!(C1);
 impl_tuple_ids_for_query!(C1, C2);
