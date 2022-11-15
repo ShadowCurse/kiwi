@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 
@@ -9,12 +10,44 @@ use crate::EcsError;
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct ArchetypeId(usize);
 
+#[derive(Debug)]
+pub struct Archetype<'a> {
+    components: Cow<'a, [TypeId]>,
+}
+
+impl<'a> Into<Archetype<'a>> for &'a [TypeId] {
+    fn into(self) -> Archetype<'a> {
+        Archetype {
+            components: Cow::from(self),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
-pub struct Archetype {
+pub struct ArchetypeInfo {
     components: HashSet<ComponentInfo>,
 }
 
-impl Archetype {
+// impl<'a> Into<ArchetypeRef<'a>> for Archetype {
+//     fn into(self) -> ArchetypeRef<'a> {
+//     }
+// }
+
+impl<'a> Into<Archetype<'a>> for &ArchetypeInfo {
+    fn into(self) -> Archetype<'a> {
+        Archetype {
+            components: Cow::Owned(self.as_sorted_vec_of_type_ids()),
+        }
+    }
+}
+
+impl ArchetypeInfo {
+    pub fn archetype(&self) -> Archetype<'_> {
+        Archetype {
+            components: Cow::Owned(self.as_sorted_vec_of_type_ids()),
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.components.len()
     }
@@ -54,29 +87,30 @@ impl Archetype {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct Archetypes {
-    archetypes: SparseSet<Archetype>,
+    archetypes: SparseSet<ArchetypeInfo>,
     archetypes_trie: ArchetypesTrie,
 }
 
 impl Archetypes {
-    pub fn insert(&mut self, archetype: Archetype) -> Result<ArchetypeId, EcsError> {
+    pub fn insert(&mut self, archetype: ArchetypeInfo) -> Result<ArchetypeId, EcsError> {
         let archetype_id = ArchetypeId(self.archetypes.insert(archetype));
         let arc = self.archetypes.get(archetype_id.0).unwrap();
-        self.archetypes_trie.insert(arc, archetype_id)?;
+        self.archetypes_trie.insert(arc.into(), archetype_id)?;
         Ok(archetype_id)
     }
 
-    pub fn get(&self, archetype_id: ArchetypeId) -> Option<&Archetype> {
+    pub fn get(&self, archetype_id: ArchetypeId) -> Option<&ArchetypeInfo> {
         self.archetypes.get(archetype_id.0)
     }
 
-    pub fn get_mut(&mut self, archetype_id: ArchetypeId) -> Option<&mut Archetype> {
+    pub fn get_mut(&mut self, archetype_id: ArchetypeId) -> Option<&mut ArchetypeInfo> {
         self.archetypes.get_mut(archetype_id.0)
     }
 
-    pub fn get_id(&self, archetype: &Archetype) -> Option<ArchetypeId> {
-        self.archetypes_trie.search(archetype)
+    pub fn get_id(&self, archetype: &ArchetypeInfo) -> Option<ArchetypeId> {
+        self.archetypes_trie.search(archetype.into())
     }
 }
 
@@ -88,25 +122,33 @@ pub struct ArchetypesTrie {
 impl ArchetypesTrie {
     pub fn insert(
         &mut self,
-        archetype: &Archetype,
+        archetype: Archetype,
         archetype_id: ArchetypeId,
     ) -> Result<(), EcsError> {
-        let components = archetype.as_sorted_vec_of_type_ids();
-        Self::recursive_insert(&mut self.root_nodes, &components, 0, archetype_id)
+        Self::recursive_insert(
+            &mut self.root_nodes,
+            archetype.components.as_ref(),
+            0,
+            archetype_id,
+        )
     }
 
-    pub fn remove(&mut self, archetype: &Archetype) -> Result<(), EcsError> {
-        let components = archetype.as_sorted_vec_of_type_ids();
-        Self::recursive_remove(&mut self.root_nodes, &components, 0)
+    pub fn remove(&mut self, archetype: Archetype) -> Result<(), EcsError> {
+        Self::recursive_remove(&mut self.root_nodes, archetype.components.as_ref(), 0)
     }
 
-    pub fn search(&self, archetype: &Archetype) -> Option<ArchetypeId> {
-        let components = archetype.as_sorted_vec_of_type_ids();
-        Self::recursive_search(&self.root_nodes, &components, 0)
+    pub fn search(&self, archetype: Archetype) -> Option<ArchetypeId> {
+        Self::recursive_search(&self.root_nodes, archetype.components.as_ref(), 0)
     }
 
-    pub fn query(&self, sub_suquence: &Archetype) -> impl Iterator<Item = ArchetypeId> + '_ {
-        ArchetypesTrieQueryIterator::new(&self.root_nodes, sub_suquence.as_sorted_vec_of_type_ids())
+    pub fn query<'a, 'b>(
+        &'a self,
+        sub_suquence: &'a Archetype<'b>,
+    ) -> impl Iterator<Item = ArchetypeId> + 'a
+    where
+        'b: 'a,
+    {
+        ArchetypesTrieQueryIterator::new(&self.root_nodes, sub_suquence.components.as_ref())
     }
 
     fn recursive_insert(
@@ -209,14 +251,14 @@ struct ArchetypesTrieQueryIteratorEntry<'a> {
     component_index: usize,
 }
 
-struct ArchetypesTrieQueryIterator<'a> {
+struct ArchetypesTrieQueryIterator<'a, 'b> {
     entries: VecDeque<ArchetypesTrieQueryIteratorEntry<'a>>,
-    components: Vec<TypeId>,
+    components: &'b [TypeId],
     found_nodes: VecDeque<&'a ArchetypeNode>,
 }
 
-impl<'a> ArchetypesTrieQueryIterator<'a> {
-    pub fn new(initial_nodes: &'a [ArchetypeNode], components: Vec<TypeId>) -> Self {
+impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
+    pub fn new(initial_nodes: &'a [ArchetypeNode], components: &'b [TypeId]) -> Self {
         let nodes = initial_nodes
             .iter()
             .map(|node| ArchetypesTrieQueryIteratorEntry {
@@ -232,7 +274,7 @@ impl<'a> ArchetypesTrieQueryIterator<'a> {
     }
 }
 
-impl Iterator for ArchetypesTrieQueryIterator<'_> {
+impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
     type Item = ArchetypeId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -301,7 +343,7 @@ mod test {
 
     #[test]
     fn archetype_create() {
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         assert!(arc.is_empty());
 
         assert!(arc.add_component::<A>().is_ok());
@@ -330,42 +372,42 @@ mod test {
     #[test]
     fn component_trie_insert() {
         let mut trie = ArchetypesTrie::default();
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let some_arc_id = ArchetypeId(0);
 
         let _ = arc.add_component::<A>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
         println!("-----------------------");
         println!("{:#?}", trie);
         println!("-----------------------");
 
         let _ = arc.add_component::<B>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
         println!("-----------------------");
         println!("{:#?}", trie);
         println!("-----------------------");
 
         let _ = arc.add_component::<C>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
         println!("-----------------------");
         println!("{:#?}", trie);
         println!("-----------------------");
 
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
         let _ = arc.add_component::<D>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
         println!("-----------------------");
         println!("{:#?}", trie);
         println!("-----------------------");
 
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
         let _ = arc.add_component::<C>();
         let _ = arc.add_component::<D>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
-        assert!(trie.insert(&arc, some_arc_id).is_err());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_err());
         println!("-----------------------");
         println!("{:#?}", trie);
         println!("-----------------------");
@@ -374,82 +416,82 @@ mod test {
     #[test]
     fn component_trie_search() {
         let mut trie = ArchetypesTrie::default();
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
 
         let some_arc_id = ArchetypeId(0);
         let _ = arc.add_component::<A>();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
-        assert_eq!(trie.search(&arc), Some(some_arc_id));
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
+        assert_eq!(trie.search(arc.archetype()), Some(some_arc_id));
 
         let some_arc_id = ArchetypeId(1);
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
         let _ = arc.add_component::<D>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
-        assert_eq!(trie.search(&arc), Some(some_arc_id));
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
+        assert_eq!(trie.search(arc.archetype()), Some(some_arc_id));
 
         let some_arc_id = ArchetypeId(2);
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
         let _ = arc.add_component::<C>();
         let _ = arc.add_component::<D>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
-        assert_eq!(trie.search(&arc), Some(some_arc_id));
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
+        assert_eq!(trie.search(arc.archetype()), Some(some_arc_id));
 
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<D>();
-        assert_eq!(trie.search(&arc), None);
+        assert_eq!(trie.search(arc.archetype()), None);
     }
 
     #[test]
     fn component_trie_query() {
         let mut trie = ArchetypesTrie::default();
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
 
         let some_arc_id = ArchetypeId(0);
         let _ = arc.add_component::<A>();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
         let some_arc_id = ArchetypeId(1);
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
         let _ = arc.add_component::<D>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
         let some_arc_id = ArchetypeId(2);
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
         let _ = arc.add_component::<C>();
         let _ = arc.add_component::<D>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
         let some_arc_id = ArchetypeId(3);
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<D>();
-        assert!(trie.insert(&arc, some_arc_id).is_ok());
+        assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
-        let ids = trie.query(&arc).collect::<HashSet<_>>();
+        let ids = trie.query(arc.archetype()).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())
         );
 
-        let mut arc = Archetype::default();
+        let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
-        let ids = trie.query(&arc).collect::<HashSet<_>>();
+        let ids = trie.query(arc.archetype()).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(2), ArchetypeId(3)].into_iter())

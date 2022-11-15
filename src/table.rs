@@ -4,7 +4,7 @@ use crate::{
     blobvec::BlobVec,
     component::{Component, ComponentInfo},
     sparse_set::SparseSet,
-    Archetype, EcsError,
+    ArchetypeInfo, EcsError,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -23,7 +23,7 @@ impl TableStorage {
     pub fn assign_archetype(
         &mut self,
         table_id: TableId,
-        archetype: &Archetype,
+        archetype_info: &ArchetypeInfo,
     ) -> Result<(), EcsError> {
         match self.tables.get_mut(table_id.0) {
             Some(table) => {
@@ -32,7 +32,7 @@ impl TableStorage {
                 } else {
                     // TODO maybe there is a better way
                     // Actually archetype should not containt dublicated componens
-                    match archetype
+                    match archetype_info
                         .iter()
                         .map(|type_info| table.register_component(type_info))
                         .collect::<Result<Vec<_>, EcsError>>()
