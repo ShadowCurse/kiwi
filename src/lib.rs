@@ -1,4 +1,5 @@
 #![feature(const_type_id)]
+#![feature(concat_idents)]
 #![feature(fn_traits)]
 
 mod archetype;
@@ -13,7 +14,7 @@ mod utils;
 
 use std::collections::HashMap;
 
-use archetype::{Archetype, ArchetypeId, Archetypes};
+use archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
 use entity::{Entity, EntityGenerator};
 use table::{TableId, TableStorage};
 
@@ -37,6 +38,7 @@ pub enum EcsError {
     TableAlreadyAssignedArchetype,
 }
 
+#[derive(Debug, Default)]
 pub struct Ecs {
     entity_generator: EntityGenerator,
     archetypes: Archetypes,
