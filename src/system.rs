@@ -6,8 +6,13 @@ pub trait System: 'static {
     fn run(&mut self, ecs: &Ecs);
 }
 
-pub trait SystemParameter {
-    fn new(ecs: &Ecs) -> Self;
+pub trait SystemParameter: Sized {
+    type Fetch: for<'ecs> SystemParameterFetch<'ecs>;
+}
+
+pub trait SystemParameterFetch<'ecs> {
+    type Item: SystemParameter<Fetch = Self>;
+    fn fetch(ecs: &'ecs Ecs) -> Self::Item;
 }
 
 pub trait IntoSystem<Params> {
@@ -37,12 +42,13 @@ impl Systems {
     }
 }
 
-impl<F, P> IntoSystem<P> for F
+impl<S, P, F> IntoSystem<P> for S
 where
-    F: SystemParameterFunction<P> + 'static,
-    P: SystemParameter + 'static,
+    S: SystemParameterFunction<P> + 'static,
+    P: SystemParameter<Fetch = F> + 'static,
+    F: for<'a> SystemParameterFetch<'a, Item = P>,
 {
-    type Output = FunctionSystem<F, P>;
+    type Output = FunctionSystem<S, P>;
 
     fn into_system(self) -> Self::Output {
         Self::Output {
@@ -57,13 +63,14 @@ pub struct FunctionSystem<S, Params: SystemParameter> {
     params: PhantomData<Params>,
 }
 
-impl<F, P> System for FunctionSystem<F, P>
+impl<S, P, F> System for FunctionSystem<S, P>
 where
-    F: SystemParameterFunction<P> + 'static,
-    P: SystemParameter + 'static,
+    S: SystemParameterFunction<P> + 'static,
+    P: SystemParameter<Fetch = F> + 'static,
+    F: for<'a> SystemParameterFetch<'a, Item = P>,
 {
     fn run(&mut self, ecs: &Ecs) {
-        let params = P::new(ecs);
+        let params = P::Fetch::fetch(ecs);
         self.system.run(params);
     }
 }
@@ -102,21 +109,38 @@ impl_system_param_func!(P1, P2, P3, P4, P5);
 
 macro_rules! impl_system_param_tuple {
     ($($t:ident),*) => {
-        impl<$($t),*> SystemParameter for ($($t, )*) where $($t: SystemParameter),*, {
-            fn new(ecs: &Ecs) -> Self {
+        impl<'ecs, $($t),*> SystemParameterFetch<'ecs> for ($($t),*,)
+        where $($t: SystemParameterFetch<'ecs>),*,
+        {
+            type Item = (
+                $($t::Item),*,
+            );
+
+            fn fetch(ecs: &'ecs Ecs) -> Self::Item {
                 (
-                    $($t::new(ecs)),*
+                    $($t::fetch(ecs)),*
                     ,
                 )
             }
+        }
+
+        impl<$($t),*> SystemParameter for ($($t),*,)
+        where $($t: SystemParameter),*,
+        {
+            type Fetch = ($($t::Fetch,)*);
         }
     };
 }
 
 impl SystemParameter for () {
-    fn new(_: &Ecs) -> Self {
-        ()
-    }
+    type Fetch = TupleFetch;
+}
+
+pub struct TupleFetch;
+impl<'ecs> SystemParameterFetch<'ecs> for TupleFetch {
+    type Item = ();
+
+    fn fetch(_ecs: &'ecs Ecs) -> Self::Item {}
 }
 
 impl_system_param_tuple!(P1);
@@ -129,24 +153,43 @@ impl_system_param_tuple!(P1, P2, P3, P4, P5);
 mod test {
     use super::*;
 
-    impl SystemParameter for bool {
-        fn new(_: &Ecs) -> Self {
+    pub struct BoolFetch;
+    impl<'ecs> SystemParameterFetch<'ecs> for BoolFetch {
+        type Item = bool;
+        fn fetch(_: &'ecs Ecs) -> Self::Item {
             true
         }
     }
 
-    impl SystemParameter for u32 {
-        fn new(_: &Ecs) -> Self {
+    impl SystemParameter for bool {
+        type Fetch = BoolFetch;
+    }
+
+    pub struct U32Fetch;
+    impl<'ecs> SystemParameterFetch<'ecs> for U32Fetch {
+        type Item = u32;
+        fn fetch(_: &'ecs Ecs) -> Self::Item {
             0
         }
+    }
+    impl SystemParameter for u32 {
+        type Fetch = U32Fetch;
     }
 
     #[test]
     fn add_and_run_systems() {
-        fn test_sys() {}
-        fn test_sys_u32(_: u32) {}
-        fn test_sys_void_and_u32(_: (), _: u32) {}
-        fn test_sys_tuples(_: ((), u32), _: (bool, bool)) {}
+        fn test_sys() {
+            println!("test_sys()");
+        }
+        fn test_sys_u32(_: u32) {
+            println!("test_sys_u32(_: u32)");
+        }
+        fn test_sys_void_and_u32(_: (), _: u32) {
+            println!("test_sys_void_and_u32(_: (), _: u32)");
+        }
+        fn test_sys_tuples(_: ((), u32), _: (bool, bool)) {
+            println!("test_sys_tuples(_: ((), u32), _: (bool, bool))");
+        }
 
         let ecs = Ecs::default();
 

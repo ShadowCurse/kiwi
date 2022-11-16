@@ -1,6 +1,12 @@
 use std::{any::TypeId, marker::PhantomData};
 
-use crate::{component::Component, count_tts, system::SystemParameter, utils::static_sort, Ecs};
+use crate::{
+    component::Component,
+    count_tts,
+    system::{SystemParameter, SystemParameterFetch},
+    utils::static_sort,
+    Ecs,
+};
 
 pub trait TupleIds<const L: usize> {
     const IDS: [TypeId; L];
@@ -9,21 +15,25 @@ pub trait TupleIds<const L: usize> {
     }
 }
 
-struct Query<'esc, T> {
-    esc: &'esc Ecs,
+pub struct Query<'ecs, T> {
+    ecs: &'ecs Ecs,
     phantom: PhantomData<T>,
 }
 
-impl<T> Query<'_, T> {
-    pub fn iter(&self) -> impl Iterator<Item = T> {
-        todo!()
-    }
+impl<T> Query<'_, T> {}
+
+impl<'a, T> SystemParameter for Query<'a, T> {
+    type Fetch = QueryFetch<T>;
 }
 
-impl<T> SystemParameter for Query<'_, T> {
-    fn new(esc: &Ecs) -> Self {
-        Query {
-            esc,
+pub struct QueryFetch<T>(PhantomData<T>);
+
+impl<'ecs, T> SystemParameterFetch<'ecs> for QueryFetch<T> {
+    type Item = Query<'ecs, T>;
+
+    fn fetch(ecs: &'ecs Ecs) -> Self::Item {
+        Self::Item {
+            ecs,
             phantom: PhantomData,
         }
     }
