@@ -9,7 +9,7 @@ pub struct Entity {
     gen: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EntityGenerator {
     generations: Vec<EntityGeneration>,
     pending: Vec<EntityId>,

@@ -28,11 +28,6 @@ pub struct ArchetypeInfo {
     components: HashSet<ComponentInfo>,
 }
 
-// impl<'a> Into<ArchetypeRef<'a>> for Archetype {
-//     fn into(self) -> ArchetypeRef<'a> {
-//     }
-// }
-
 impl<'a> Into<Archetype<'a>> for &ArchetypeInfo {
     fn into(self) -> Archetype<'a> {
         Archetype {
@@ -483,7 +478,7 @@ mod test {
         let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
-        let ids = trie.query(arc.archetype()).collect::<HashSet<_>>();
+        let ids = trie.query(&arc.archetype()).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())
@@ -491,7 +486,7 @@ mod test {
 
         let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
-        let ids = trie.query(arc.archetype()).collect::<HashSet<_>>();
+        let ids = trie.query(&arc.archetype()).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(2), ArchetypeId(3)].into_iter())
