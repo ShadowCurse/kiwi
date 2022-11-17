@@ -10,34 +10,26 @@ use crate::EcsError;
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct ArchetypeId(usize);
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct Archetype<'a> {
     components: Cow<'a, [TypeId]>,
 }
 
-impl<'a> Into<Archetype<'a>> for &'a [TypeId] {
-    fn into(self) -> Archetype<'a> {
-        Archetype {
-            components: Cow::from(self),
+impl<'a> From<&'a [TypeId]> for Archetype<'a> {
+    fn from(ids: &'a [TypeId]) -> Self {
+        Self {
+            components: Cow::from(ids),
         }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ArchetypeInfo {
     components: HashSet<ComponentInfo>,
 }
 
-impl<'a> Into<Archetype<'a>> for &ArchetypeInfo {
-    fn into(self) -> Archetype<'a> {
-        Archetype {
-            components: Cow::Owned(self.as_sorted_vec_of_type_ids()),
-        }
-    }
-}
-
 impl ArchetypeInfo {
-    pub fn archetype(&self) -> Archetype<'_> {
+    pub fn archetype(&self) -> Archetype<'static> {
         Archetype {
             components: Cow::Owned(self.as_sorted_vec_of_type_ids()),
         }
@@ -89,10 +81,13 @@ pub struct Archetypes {
 }
 
 impl Archetypes {
-    pub fn insert(&mut self, archetype: ArchetypeInfo) -> Result<ArchetypeId, EcsError> {
+    pub fn get_or_insert(&mut self, archetype: ArchetypeInfo) -> Result<ArchetypeId, EcsError> {
+        if let Some(arch_id) = self.archetypes_trie.search(archetype.archetype()) {
+            return Ok(arch_id);
+        }
         let archetype_id = ArchetypeId(self.archetypes.insert(archetype));
         let arc = self.archetypes.get(archetype_id.0).unwrap();
-        self.archetypes_trie.insert(arc.into(), archetype_id)?;
+        self.archetypes_trie.insert(arc.archetype(), archetype_id)?;
         Ok(archetype_id)
     }
 
@@ -105,7 +100,7 @@ impl Archetypes {
     }
 
     pub fn get_id(&self, archetype: &ArchetypeInfo) -> Option<ArchetypeId> {
-        self.archetypes_trie.search(archetype.into())
+        self.archetypes_trie.search(archetype.archetype())
     }
 }
 
