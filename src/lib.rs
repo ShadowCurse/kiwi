@@ -15,6 +15,7 @@ mod utils;
 use std::collections::HashMap;
 
 use archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
+use component::Component;
 use entity::{Entity, EntityGenerator};
 use table::{TableId, TableStorage};
 
@@ -36,6 +37,12 @@ pub enum EcsError {
     TableRegisteringDuplicatedComponent,
     #[error("Table already has the archetype assigned to it")]
     TableAlreadyAssignedArchetype,
+    #[error("Trying to access non existing entity")]
+    NonExistingEntity,
+    #[error("Trying to access non existing archetype")]
+    NonExistingArchetype,
+    #[error("Trying to access non existing table")]
+    NonExistingTable,
 }
 
 #[derive(Debug, Default)]
@@ -57,12 +64,39 @@ impl Ecs {
 
     /// Adds component to the entity
     /// Returns error if component with the same type is already added to the entity
-    pub fn add_component<T: 'static>(
+    pub fn add_component<C: Component>(
         &mut self,
         entity: Entity,
-        component: T,
+        component: C,
     ) -> Result<(), EcsError> {
-        todo!()
+        match self.entity_to_archetype.get(&entity) {
+            Some(arch) => {
+                let mut arch_info = match self.archetypes.get(*arch) {
+                    Some(arch) => arch.clone(),
+                    None => Err(EcsError::NonExistingArchetype)?,
+                };
+                let old_table_id = match self.archetype_to_table.get(arch) {
+                    Some(table_id) => table_id,
+                    None => Err(EcsError::NonExistingTable)?,
+                };
+                let old_arch = arch_info.archetype();
+                arch_info.add_component::<C>()?;
+
+                let new_arch_id = self.archetypes.get_or_insert(arch_info)?;
+
+                let new_table_id = match self.archetype_to_table.get(&new_arch_id) {
+                    Some(new_table_id) => *new_table_id,
+                    None => self.storage.new_table(),
+                };
+
+                self.storage
+                    .transfer_components(*old_table_id, new_table_id, old_arch)?;
+                // TODO don't forget entity
+                self.storage.insert_component(new_table_id, component)?;
+            }
+            None => Err(EcsError::NonExistingEntity)?,
+        }
+        Ok(())
     }
 
     /// Removes component from the entity
@@ -70,8 +104,4 @@ impl Ecs {
     pub fn remove_component<T: 'static>(&mut self, entity: Entity) -> Result<(), EcsError> {
         todo!()
     }
-
-    // pub fn query(&self, query: Archetype) -> impl Iterator<Item = ()> {
-    //     todo!()
-    // }
 }

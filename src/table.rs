@@ -4,7 +4,7 @@ use crate::{
     blobvec::BlobVec,
     component::{Component, ComponentInfo},
     sparse_set::SparseSet,
-    ArchetypeInfo, EcsError,
+    ArchetypeInfo, EcsError, archetype::Archetype,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -49,7 +49,7 @@ impl TableStorage {
         }
     }
 
-    pub fn transfer_components(&mut self, from: TableId, to: TableId) -> Result<(), EcsError> {
+    pub fn transfer_components(&mut self, from: TableId, to: TableId, archetype: Archetype) -> Result<(), EcsError> {
         todo!()
     }
 
