@@ -1,10 +1,12 @@
 use std::{any::TypeId, collections::HashMap};
 
 use crate::{
+    archetype::Archetype,
     blobvec::BlobVec,
     component::{Component, ComponentInfo},
+    entity::Entity,
     sparse_set::SparseSet,
-    ArchetypeInfo, EcsError, archetype::Archetype,
+    ArchetypeInfo, EcsError,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -49,8 +51,26 @@ impl TableStorage {
         }
     }
 
-    pub fn transfer_components(&mut self, from: TableId, to: TableId, archetype: Archetype) -> Result<(), EcsError> {
-        todo!()
+    pub fn transfer_components(
+        &mut self,
+        from: TableId,
+        to: TableId,
+        entity: Entity,
+        archetype: Archetype,
+    ) -> Result<(), EcsError> {
+        // let from = match self.tables.get_mut(from.0) {
+        //     Some(table) => table,
+        //     None => Err(EcsError::NonExistingTable)?,
+        // };
+        // let to = match self.tables.get_mut(to.0) {
+        //     Some(table) => table,
+        //     None => Err(EcsError::NonExistingTable)?,
+        // };
+        // for type_id in archetype.iter() {
+        //     to.transfer_component(from.get_component(&entity, type_id));
+        // }
+        // from.invalidate_entity(&entity);
+        Ok(())
     }
 
     pub fn insert_component<T: Component>(
@@ -68,11 +88,19 @@ impl TableStorage {
 #[derive(Debug, Default)]
 pub struct Table {
     columns: HashMap<TypeId, BlobVec>,
+    entities: HashMap<Entity, usize>,
+    lines: usize,
 }
 
 impl Table {
     pub fn clear(&mut self) {
         self.columns.clear();
+        self.entities.clear();
+        self.lines = 0;
+    }
+
+    pub fn invalidate_entity(&mut self, entity: &Entity) {
+        todo!()
     }
 
     pub fn register_component(&mut self, component_info: &ComponentInfo) -> Result<(), EcsError> {
@@ -84,6 +112,19 @@ impl Table {
             }
             true => Err(EcsError::TableRegisteringDuplicatedComponent),
         }
+    }
+
+    pub fn transfer_component(&mut self, component: (*const u8, usize)) {
+        todo!()
+    }
+
+    pub fn get_component(&mut self, entity: &Entity, type_id: &TypeId) -> (*const u8, usize) {
+        todo!()
+    }
+
+    pub fn insert_entity(&mut self, entity: Entity) {
+        self.entities.insert(entity, self.lines);
+        self.lines += 1;
     }
 
     pub fn insert_component<T: Component>(&mut self, component: T) -> Result<(), EcsError> {
