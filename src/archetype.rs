@@ -15,6 +15,12 @@ pub struct Archetype<'a> {
     components: Cow<'a, [TypeId]>,
 }
 
+impl<'a> Archetype<'a> {
+    pub fn iter(&self) -> impl Iterator<Item = &TypeId> {
+        self.components.iter()
+    }
+}
+
 impl<'a> From<&'a [TypeId]> for Archetype<'a> {
     fn from(ids: &'a [TypeId]) -> Self {
         Self {
