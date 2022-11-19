@@ -106,10 +106,25 @@ impl<V> SparseSet<V> {
 
     #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut V> {
-        self.sparse.get_mut(index).map(|dense_index| {
+        self.sparse.get(index).map(|dense_index| {
             // SAFETY: dense_index always exists
             unsafe { self.dense.get_unchecked_mut(*dense_index) }
         })
+    }
+
+    /// # Safety
+    /// index1 and index2 must be different
+    #[inline]
+    pub unsafe fn get_2_mut(&mut self, index1: usize, index2: usize) -> Option<(&mut V, &mut V)> {
+        self.sparse
+            .get(index1)
+            .zip(self.sparse.get(index2))
+            .map(|(di1, di2)| {
+                let ptr = self.dense.as_mut_ptr();
+                let e1 = ptr.add(*di1);
+                let e2 = ptr.add(*di2);
+                (std::mem::transmute(&mut *e1), std::mem::transmute(&mut *e2))
+            })
     }
 
     #[inline]
