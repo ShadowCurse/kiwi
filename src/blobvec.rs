@@ -38,6 +38,14 @@ impl BlobVec {
     }
 
     /// # Safety
+    /// The slice should contain data of type T that is stored inside the [`BlobVec`]
+    #[inline]
+    pub unsafe fn add_from_slice(&mut self, object_slice: &[u8]) {
+        self.data.extend_from_slice(object_slice);
+        self.len += 1;
+    }
+
+    /// # Safety
     /// The index should be in range 0 to blobvec.len()
     #[inline]
     pub unsafe fn get(&self, index: usize) -> &() {
@@ -51,6 +59,14 @@ impl BlobVec {
     pub unsafe fn get_mut(&mut self, index: usize) -> &mut () {
         let data_index = index * self.layout.size();
         std::mem::transmute(&mut self.data[data_index])
+    }
+
+    /// # Safety
+    /// The index should be in range 0 to blobvec.len()
+    #[inline]
+    pub unsafe fn get_as_byte_slice(&self, index: usize) -> &[u8] {
+        let data_index = index * self.layout.size();
+        unsafe { std::slice::from_raw_parts(&self.data[data_index], self.layout.size()) }
     }
 
     #[inline]
@@ -114,6 +130,29 @@ mod test {
         assert_eq!(blob.layout, Layout::new::<u32>());
         assert_eq!(blob.len, 2);
         assert_eq!(blob.data, [0, 0, 0, 0, 32, 0, 0, 0]);
+    }
+
+    #[test]
+    fn blob_get_and_add_from_slice() {
+        #[derive(PartialEq, Eq)]
+        struct Foo {
+            a: u32,
+            b: bool,
+            c: (u8, u8)
+        }
+        let layout = Layout::new::<Foo>();
+        let mut blob = BlobVec::new(layout);
+
+        let val = Foo { a: 1, b: true, c: (6, 9) };
+        unsafe { blob.add(val) };
+        assert_eq!(blob.data, [1, 0, 0, 0, 1, 6, 9, 0]);
+
+        let val_as_slice = unsafe { blob.get_as_byte_slice(0) };
+        assert_eq!(val_as_slice, [1, 0, 0, 0, 1, 6, 9, 0]);
+
+        let mut blob = BlobVec::new(layout);
+        unsafe { blob.add_from_slice(val_as_slice) };
+        assert_eq!(blob.data, [1, 0, 0, 0, 1, 6, 9, 0]);
     }
 
     #[test]
