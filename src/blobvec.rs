@@ -29,7 +29,7 @@ impl BlobVec {
     /// # Safety
     /// The type T should be the type that is stored inside the [`BlobVec`]
     #[inline]
-    pub unsafe fn add<T>(&mut self, object: T) {
+    pub unsafe fn push<T>(&mut self, object: T) {
         let ptr: &u8 = std::mem::transmute(&object);
         let slice = std::slice::from_raw_parts(ptr, self.layout.size());
         self.data.extend_from_slice(slice);
@@ -40,9 +40,38 @@ impl BlobVec {
     /// # Safety
     /// The slice should contain data of type T that is stored inside the [`BlobVec`]
     #[inline]
-    pub unsafe fn add_from_slice(&mut self, object_slice: &[u8]) {
+    pub unsafe fn push_from_slice(&mut self, object_slice: &[u8]) {
         self.data.extend_from_slice(object_slice);
         self.len += 1;
+    }
+
+    /// # Safety
+    /// The type T should be the type that is stored inside the [`BlobVec`]
+    #[inline]
+    pub unsafe fn insert<T>(&mut self, index: usize, object: T) {
+        let ptr: &u8 = std::mem::transmute(&object);
+        let slice = std::slice::from_raw_parts(ptr, self.layout.size());
+        let object_slice = unsafe {
+            std::slice::from_raw_parts_mut(
+                self.get_mut(index) as *mut () as *mut u8,
+                self.layout.size(),
+            )
+        };
+        object_slice.copy_from_slice(slice);
+        std::mem::forget(object);
+    }
+
+    /// # Safety
+    /// The slice should contain data of type T that is stored inside the [`BlobVec`]
+    #[inline]
+    pub unsafe fn insert_from_slice(&mut self, index: usize, object_slice: &[u8]) {
+        let object_slice = unsafe {
+            std::slice::from_raw_parts_mut(
+                self.get_mut(index) as *mut () as *mut u8,
+                self.layout.size(),
+            )
+        };
+        object_slice.copy_from_slice(object_slice);
     }
 
     /// # Safety
@@ -118,18 +147,50 @@ mod test {
         let mut blob = BlobVec::new(layout);
 
         let val: u32 = 0;
-        unsafe { blob.add(val) };
+        unsafe { blob.push(val) };
 
         assert_eq!(blob.layout, Layout::new::<u32>());
         assert_eq!(blob.len, 1);
         assert_eq!(blob.data, [0, 0, 0, 0]);
 
         let val: u32 = 32;
-        unsafe { blob.add(val) };
+        unsafe { blob.push(val) };
 
         assert_eq!(blob.layout, Layout::new::<u32>());
         assert_eq!(blob.len, 2);
         assert_eq!(blob.data, [0, 0, 0, 0, 32, 0, 0, 0]);
+
+        let val: [u8; 4] = [69, 0, 0, 0];
+        unsafe { blob.push_from_slice(&val) };
+
+        assert_eq!(blob.layout, Layout::new::<u32>());
+        assert_eq!(blob.len, 2);
+        assert_eq!(blob.data, [0, 0, 0, 0, 32, 0, 0, 0, 69, 0, 0, 0]);
+    }
+
+    #[test]
+    fn blob_insert() {
+        let layout = Layout::new::<u32>();
+        let mut blob = BlobVec::new(layout);
+
+        let val: u32 = 0;
+        unsafe { blob.push(val) };
+        let val: u32 = 32;
+        unsafe { blob.push(val) };
+
+        assert_eq!(blob.data, [0, 0, 0, 0, 32, 0, 0, 0]);
+
+        let val = 69;
+        unsafe { blob.insert(1, val) };
+
+        assert_eq!(blob.len, 2);
+        assert_eq!(blob.data, [0, 0, 0, 0, 69, 0, 0, 0]);
+
+        let val: [u8; 4] = [11, 0, 0, 0];
+        unsafe { blob.insert_from_slice(0, &val) };
+
+        assert_eq!(blob.len, 2);
+        assert_eq!(blob.data, [11, 0, 0, 0, 69, 0, 0, 0]);
     }
 
     #[test]
@@ -138,20 +199,24 @@ mod test {
         struct Foo {
             a: u32,
             b: bool,
-            c: (u8, u8)
+            c: (u8, u8),
         }
         let layout = Layout::new::<Foo>();
         let mut blob = BlobVec::new(layout);
 
-        let val = Foo { a: 1, b: true, c: (6, 9) };
-        unsafe { blob.add(val) };
+        let val = Foo {
+            a: 1,
+            b: true,
+            c: (6, 9),
+        };
+        unsafe { blob.push(val) };
         assert_eq!(blob.data, [1, 0, 0, 0, 1, 6, 9, 0]);
 
         let val_as_slice = unsafe { blob.get_as_byte_slice(0) };
         assert_eq!(val_as_slice, [1, 0, 0, 0, 1, 6, 9, 0]);
 
         let mut blob = BlobVec::new(layout);
-        unsafe { blob.add_from_slice(val_as_slice) };
+        unsafe { blob.push_from_slice(val_as_slice) };
         assert_eq!(blob.data, [1, 0, 0, 0, 1, 6, 9, 0]);
     }
 
@@ -161,7 +226,7 @@ mod test {
         let mut blob = BlobVec::new(layout);
 
         let val: u32 = 0;
-        unsafe { blob.add(val) };
+        unsafe { blob.push(val) };
 
         let ptr = unsafe { blob.get(0) };
         let ptr: *const u8 = ptr as *const () as *const u8;
@@ -169,7 +234,7 @@ mod test {
         assert_eq!(ptr, blob.data.as_ptr());
 
         let val: u32 = 32;
-        unsafe { blob.add(val) };
+        unsafe { blob.push(val) };
 
         let ptr = unsafe { blob.get(0) };
         let ptr: *const u8 = ptr as *const () as *const u8;
@@ -185,13 +250,13 @@ mod test {
         let mut blob = BlobVec::new(layout);
 
         let val: u32 = 0;
-        unsafe { blob.add(val) };
+        unsafe { blob.push(val) };
         let slice = unsafe { blob.as_slice::<u32>() };
 
         assert_eq!(slice, &[0]);
 
         let val: u32 = 32;
-        unsafe { blob.add(val) };
+        unsafe { blob.push(val) };
         let slice = unsafe { blob.as_slice::<u32>() };
 
         assert_eq!(slice, &[0, 32]);
