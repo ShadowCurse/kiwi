@@ -89,8 +89,16 @@ impl Ecs {
                     None => self.storage.new_table(),
                 };
 
-                self.storage
-                    .transfer_components(*old_table_id, new_table_id, entity, old_arch)?;
+                // # Safety
+                // Save because tables ids are different
+                unsafe {
+                    self.storage.transfer_components(
+                        *old_table_id,
+                        new_table_id,
+                        entity,
+                        old_arch,
+                    )?
+                };
                 // TODO don't forget entity
                 self.storage.insert_component(new_table_id, component)?;
             }
