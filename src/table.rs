@@ -1,4 +1,7 @@
-use std::{any::TypeId, collections::HashMap};
+use std::{
+    any::TypeId,
+    collections::{HashMap, VecDeque},
+};
 
 use crate::{
     archetype::Archetype,
@@ -51,25 +54,23 @@ impl TableStorage {
         }
     }
 
-    pub fn transfer_components(
+    /// # Safety
+    /// This is safe as long as table ids are different
+    pub unsafe fn transfer_components(
         &mut self,
         from: TableId,
         to: TableId,
         entity: Entity,
         archetype: Archetype,
     ) -> Result<(), EcsError> {
-        // let from = match self.tables.get_mut(from.0) {
-        //     Some(table) => table,
-        //     None => Err(EcsError::NonExistingTable)?,
-        // };
-        // let to = match self.tables.get_mut(to.0) {
-        //     Some(table) => table,
-        //     None => Err(EcsError::NonExistingTable)?,
-        // };
-        // for type_id in archetype.iter() {
-        //     to.transfer_component(from.get_component(&entity, type_id));
-        // }
-        // from.invalidate_entity(&entity);
+        let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
+            Some((from, to)) => (from, to),
+            None => Err(EcsError::NonExistingTable)?,
+        };
+        for type_id in archetype.iter() {
+            to.copy_component_from(type_id, from.get_component(&entity, type_id))?;
+        }
+        from.invalidate_entity(&entity);
         Ok(())
     }
 
@@ -89,18 +90,23 @@ impl TableStorage {
 pub struct Table {
     columns: HashMap<TypeId, BlobVec>,
     entities: HashMap<Entity, usize>,
-    lines: usize,
+    empty_lines: VecDeque<usize>,
 }
 
 impl Table {
     pub fn clear(&mut self) {
         self.columns.clear();
         self.entities.clear();
-        self.lines = 0;
+        self.empty_lines.clear();
+    }
+
+    pub fn insert_entity(&mut self, entity: Entity) {
+        self.entities.insert(entity, self.entities.len());
     }
 
     pub fn invalidate_entity(&mut self, entity: &Entity) {
-        todo!()
+        self.empty_lines.push_back(self.entities[entity]);
+        self.entities.remove(entity);
     }
 
     pub fn register_component(&mut self, component_info: &ComponentInfo) -> Result<(), EcsError> {
@@ -114,17 +120,24 @@ impl Table {
         }
     }
 
-    pub fn transfer_component(&mut self, component: (*const u8, usize)) {
-        todo!()
+    pub fn get_component(&self, entity: &Entity, type_id: &TypeId) -> &[u8] {
+        unsafe { self.columns[type_id].get_as_byte_slice(self.entities[entity]) }
     }
 
-    pub fn get_component(&mut self, entity: &Entity, type_id: &TypeId) -> (*const u8, usize) {
-        todo!()
-    }
-
-    pub fn insert_entity(&mut self, entity: Entity) {
-        self.entities.insert(entity, self.lines);
-        self.lines += 1;
+    pub fn copy_component_from(
+        &mut self,
+        type_id: &TypeId,
+        component: &[u8],
+    ) -> Result<(), EcsError> {
+        match self.columns.get_mut(type_id) {
+            Some(column) => {
+                // #Safety
+                // We know that slice corresponce to correct type
+                unsafe { column.add_from_slice(component) };
+                Ok(())
+            }
+            None => Err(EcsError::TableDoesNotContainComponentColumn),
+        }
     }
 
     pub fn insert_component<T: Component>(&mut self, component: T) -> Result<(), EcsError> {
