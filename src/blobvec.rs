@@ -138,12 +138,16 @@ mod test {
         struct Foo {
             a: u32,
             b: bool,
-            c: (u8, u8)
+            c: (u8, u8),
         }
         let layout = Layout::new::<Foo>();
         let mut blob = BlobVec::new(layout);
 
-        let val = Foo { a: 1, b: true, c: (6, 9) };
+        let val = Foo {
+            a: 1,
+            b: true,
+            c: (6, 9),
+        };
         unsafe { blob.add(val) };
         assert_eq!(blob.data, [1, 0, 0, 0, 1, 6, 9, 0]);
 
