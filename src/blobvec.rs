@@ -40,8 +40,8 @@ impl BlobVec {
     /// # Safety
     /// The slice should contain data of type T that is stored inside the [`BlobVec`]
     #[inline]
-    pub unsafe fn push_from_slice(&mut self, object_slice: &[u8]) {
-        self.data.extend_from_slice(object_slice);
+    pub unsafe fn push_from_slice(&mut self, object: &[u8]) {
+        self.data.extend_from_slice(object);
         self.len += 1;
     }
 
@@ -64,14 +64,14 @@ impl BlobVec {
     /// # Safety
     /// The slice should contain data of type T that is stored inside the [`BlobVec`]
     #[inline]
-    pub unsafe fn insert_from_slice(&mut self, index: usize, object_slice: &[u8]) {
+    pub unsafe fn insert_from_slice(&mut self, index: usize, object: &[u8]) {
         let object_slice = unsafe {
             std::slice::from_raw_parts_mut(
                 self.get_mut(index) as *mut () as *mut u8,
                 self.layout.size(),
             )
         };
-        object_slice.copy_from_slice(object_slice);
+        object_slice.copy_from_slice(object);
     }
 
     /// # Safety
