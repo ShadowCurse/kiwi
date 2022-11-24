@@ -59,7 +59,7 @@ pub struct Ecs {
 impl Ecs {
     /// Creates new entity without components
     pub fn create(&mut self) -> Entity {
-        todo!()
+        self.entity_generator.create()
     }
 
     /// Adds component to the entity
@@ -71,36 +71,37 @@ impl Ecs {
     ) -> Result<(), EcsError> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
-                let mut arch_info = match self.archetypes.get(*arch) {
-                    Some(arch) => arch.clone(),
+                let mut arch_info = match self.archetypes.get_info(*arch) {
+                    Some(arch_info) => arch_info.clone(),
                     None => Err(EcsError::NonExistingArchetype)?,
                 };
                 let old_table_id = match self.archetype_to_table.get(arch) {
                     Some(table_id) => table_id,
                     None => Err(EcsError::NonExistingTable)?,
                 };
-                let old_arch = arch_info.archetype();
+
                 arch_info.add_component::<C>()?;
 
-                let new_arch_id = self.archetypes.get_or_insert(arch_info)?;
+                let new_arch_id = match self.archetypes.get_id(&arch_info) {
+                    Some(id) => id,
+                    None => self.archetypes.insert(arch_info.clone())?,
+                };
 
                 let new_table_id = match self.archetype_to_table.get(&new_arch_id) {
                     Some(new_table_id) => *new_table_id,
-                    None => self.storage.new_table(),
+                    None => self.storage.new_table(&arch_info),
                 };
 
                 // # Safety
                 // Save because tables ids are different
                 unsafe {
-                    self.storage.transfer_components(
+                    self.storage.transfer_line_with_insertion(
                         *old_table_id,
                         new_table_id,
                         entity,
-                        old_arch,
+                        component,
                     )?
                 };
-                // TODO don't forget entity
-                self.storage.insert_component(new_table_id, component)?;
             }
             None => Err(EcsError::NonExistingEntity)?,
         }
@@ -109,7 +110,39 @@ impl Ecs {
 
     /// Removes component from the entity
     /// Returns error if component does not exist
-    pub fn remove_component<T: 'static>(&mut self, entity: Entity) -> Result<(), EcsError> {
-        todo!()
+    pub fn remove_component<C: Component>(&mut self, entity: Entity) -> Result<(), EcsError> {
+        match self.entity_to_archetype.get(&entity) {
+            Some(arch) => {
+                let mut arch_info = match self.archetypes.get_info(*arch) {
+                    Some(arch_info) => arch_info.clone(),
+                    None => Err(EcsError::NonExistingArchetype)?,
+                };
+                let old_table_id = match self.archetype_to_table.get(arch) {
+                    Some(table_id) => table_id,
+                    None => Err(EcsError::NonExistingTable)?,
+                };
+
+                arch_info.add_component::<C>()?;
+
+                let new_arch_id = match self.archetypes.get_id(&arch_info) {
+                    Some(id) => id,
+                    None => self.archetypes.insert(arch_info.clone())?,
+                };
+
+                let new_table_id = match self.archetype_to_table.get(&new_arch_id) {
+                    Some(new_table_id) => *new_table_id,
+                    None => self.storage.new_table(&arch_info),
+                };
+
+                // # Safety
+                // Save because tables ids are different
+                unsafe {
+                    self.storage
+                        .transfer_line_with_deletion(*old_table_id, new_table_id, entity)?
+                };
+            }
+            None => Err(EcsError::NonExistingEntity)?,
+        }
+        Ok(())
     }
 }
