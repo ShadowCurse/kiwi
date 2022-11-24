@@ -82,27 +82,20 @@ impl ArchetypeInfo {
 
 #[derive(Debug, Default)]
 pub struct Archetypes {
-    archetypes: SparseSet<ArchetypeInfo>,
+    archetypes_info: SparseSet<ArchetypeInfo>,
     archetypes_trie: ArchetypesTrie,
 }
 
 impl Archetypes {
-    pub fn get_or_insert(&mut self, archetype: ArchetypeInfo) -> Result<ArchetypeId, EcsError> {
-        if let Some(arch_id) = self.archetypes_trie.search(archetype.archetype()) {
-            return Ok(arch_id);
-        }
-        let archetype_id = ArchetypeId(self.archetypes.insert(archetype));
-        let arc = self.archetypes.get(archetype_id.0).unwrap();
-        self.archetypes_trie.insert(arc.archetype(), archetype_id)?;
+    pub fn insert(&mut self, archetype_info: ArchetypeInfo) -> Result<ArchetypeId, EcsError> {
+        let arch = archetype_info.archetype();
+        let archetype_id = ArchetypeId(self.archetypes_info.insert(archetype_info));
+        self.archetypes_trie.insert(arch, archetype_id)?;
         Ok(archetype_id)
     }
 
-    pub fn get(&self, archetype_id: ArchetypeId) -> Option<&ArchetypeInfo> {
-        self.archetypes.get(archetype_id.0)
-    }
-
-    pub fn get_mut(&mut self, archetype_id: ArchetypeId) -> Option<&mut ArchetypeInfo> {
-        self.archetypes.get_mut(archetype_id.0)
+    pub fn get_info(&self, archetype_id: ArchetypeId) -> Option<&ArchetypeInfo> {
+        self.archetypes_info.get(archetype_id.0)
     }
 
     pub fn get_id(&self, archetype: &ArchetypeInfo) -> Option<ArchetypeId> {
