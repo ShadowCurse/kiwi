@@ -5,6 +5,7 @@ pub struct BlobVec {
     layout: Layout,
     len: usize,
     data: Vec<u8>,
+    free_slot: Box<[u8]>,
 }
 
 impl BlobVec {
@@ -13,6 +14,7 @@ impl BlobVec {
             layout,
             len: 0,
             data: Vec::new(),
+            free_slot: vec![0; layout.size()].into(),
         }
     }
 
@@ -42,6 +44,13 @@ impl BlobVec {
     #[inline]
     pub unsafe fn push_from_slice(&mut self, object: &[u8]) {
         self.data.extend_from_slice(object);
+        self.len += 1;
+    }
+
+    /// The slice should contain data of type T that is stored inside the [`BlobVec`]
+    #[inline]
+    pub fn push_empty(&mut self) {
+        self.data.extend_from_slice(&self.free_slot);
         self.len += 1;
     }
 

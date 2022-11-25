@@ -29,7 +29,7 @@ impl TableStorage {
         &mut self,
         from: TableId,
         to: TableId,
-        entity: Entity,
+        entity: &Entity,
         new_component: T,
     ) -> Result<(), EcsError> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
@@ -46,7 +46,7 @@ impl TableStorage {
         &mut self,
         from: TableId,
         to: TableId,
-        entity: Entity,
+        entity: &Entity,
     ) -> Result<(), EcsError> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
             Some((from, to)) => (from, to),
@@ -60,10 +60,11 @@ impl TableStorage {
     pub fn insert_component<T: Component>(
         &mut self,
         table_id: TableId,
+        entity: &Entity,
         component: T,
     ) -> Result<(), EcsError> {
         match self.tables.get_mut(table_id.0) {
-            Some(table) => table.push_back_component(component),
+            Some(table) => table.insert_component(entity, component),
             None => Err(EcsError::TableDoesNotExist),
         }
     }
@@ -99,8 +100,13 @@ impl Table {
 
     pub fn add_entity(&mut self, entity: Entity) {
         match self.empty_lines.pop_front() {
-            Some(line) => self.entities.insert(entity, line),
-            None => self.entities.insert(entity, self.entities.len()),
+            Some(line) => {
+                self.entities.insert(entity, line);
+            }
+            None => {
+                self.entities.insert(entity, self.entities.len());
+                self.allocate_empty_line();
+            }
         };
     }
 
@@ -109,7 +115,7 @@ impl Table {
         self.entities.remove(entity);
     }
 
-    pub fn get_component_as_slice(&self, entity: &Entity, type_id: &TypeId) -> &[u8] {
+    fn get_component_as_slice(&self, entity: &Entity, type_id: &TypeId) -> &[u8] {
         unsafe { self.columns[type_id].get_as_byte_slice(self.entities[entity]) }
     }
 
@@ -125,7 +131,13 @@ impl Table {
         Ok(())
     }
 
-    pub fn copy_component_from_slice(
+    fn allocate_empty_line(&mut self) {
+        for column in self.columns.values_mut() {
+            column.push_empty();
+        }
+    }
+
+    fn copy_component_from_slice(
         &mut self,
         type_id: &TypeId,
         line: usize,
@@ -136,21 +148,6 @@ impl Table {
                 // #Safety
                 // We know that slice corresponce to correct type
                 unsafe { column.insert_from_slice(line, component) };
-                Ok(())
-            }
-            None => Err(EcsError::TableDoesNotContainComponentColumn),
-        }
-    }
-
-    pub fn push_back_component<T: Component>(&mut self, component: T) -> Result<(), EcsError> {
-        let type_id = TypeId::of::<T>();
-        match self.columns.get_mut(&type_id) {
-            Some(column) => {
-                // If column exist for the type
-                // then it is safe to add component of this type
-                unsafe {
-                    column.push(component);
-                }
                 Ok(())
             }
             None => Err(EcsError::TableDoesNotContainComponentColumn),
@@ -175,5 +172,55 @@ impl Table {
             }
             None => Err(EcsError::TableDoesNotContainComponentColumn),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn intersection() {
+        let arc1 = ArchetypeInfo::default();
+        arc1.add_component::<u8>().unwrap();
+        arc1.add_component::<u16>().unwrap();
+        arc1.add_component::<u32>().unwrap();
+        let table1 = Table::new(&arc1);
+
+        let arc2 = ArchetypeInfo::default();
+        arc1.add_component::<u8>().unwrap();
+        arc1.add_component::<u16>().unwrap();
+        arc1.add_component::<u64>().unwrap();
+        let table2 = Table::new(&arc2);
+
+        assert_eq!(
+            table1.intersection(&table2),
+            vec![std::any::TypeId::of::<u8>(), std::any::TypeId::of::<u16>()]
+        );
+    }
+
+    #[test]
+    fn transfer_line() {
+        let arc1 = ArchetypeInfo::default();
+        arc1.add_component::<u8>().unwrap();
+        arc1.add_component::<u16>().unwrap();
+        arc1.add_component::<u32>().unwrap();
+        let table1 = Table::new(&arc1);
+
+        let entity = Entity { id: 1, gen: 0 };
+
+        table1.add_entity(entity);
+
+        table1.insert_component(&entity, 1u8).unwrap();
+        table1.insert_component(&entity, 2u16).unwrap();
+        table1.insert_component(&entity, 3u32).unwrap();
+
+        let arc2 = ArchetypeInfo::default();
+        arc1.add_component::<u8>().unwrap();
+        arc1.add_component::<u16>().unwrap();
+        arc1.add_component::<u32>().unwrap();
+        let table2 = Table::new(&arc2);
+
+        table2.copy_line_from(&table1, &entity).unwrap();
     }
 }

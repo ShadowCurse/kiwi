@@ -103,7 +103,23 @@ impl Ecs {
                     )?
                 };
             }
-            None => Err(EcsError::NonExistingEntity)?,
+            None => {
+                // The entity does not have an associated compoenet
+                let arch_info = ArchetypeInfo::default();
+                arch_info.add_component::<C>()?;
+
+                let new_arch_id = match self.archetypes.get_id(&arch_info) {
+                    Some(id) => id,
+                    None => self.archetypes.insert(arch_info.clone())?,
+                };
+
+                let new_table_id = match self.archetype_to_table.get(&new_arch_id) {
+                    Some(new_table_id) => *new_table_id,
+                    None => self.storage.new_table(&arch_info),
+                };
+
+                self.storage.insert_component(new_table_id, component)?;
+            }
         }
         Ok(())
     }
