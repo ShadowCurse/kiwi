@@ -29,13 +29,14 @@ impl TableStorage {
         &mut self,
         from: TableId,
         to: TableId,
-        entity: &Entity,
+        entity: Entity,
         new_component: T,
     ) -> Result<(), EcsError> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
             Some((from, to)) => (from, to),
             None => Err(EcsError::NonExistingTable)?,
         };
+        to.add_entity(entity);
         to.copy_line_from(from, &entity)?;
         to.insert_component(&entity, new_component)?;
         from.remove_entity(&entity);
@@ -46,12 +47,13 @@ impl TableStorage {
         &mut self,
         from: TableId,
         to: TableId,
-        entity: &Entity,
+        entity: Entity,
     ) -> Result<(), EcsError> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
             Some((from, to)) => (from, to),
             None => Err(EcsError::NonExistingTable)?,
         };
+        to.add_entity(entity);
         to.copy_line_from(from, &entity)?;
         from.remove_entity(&entity);
         Ok(())
@@ -119,6 +121,22 @@ impl Table {
         unsafe { self.columns[type_id].get_as_byte_slice(self.entities[entity]) }
     }
 
+    pub fn get_component<T: Component>(&self, entity: &Entity) -> Option<&T> {
+        let line = self.entities[entity];
+        let type_id = TypeId::of::<T>();
+        self.columns
+            .get(&type_id)
+            .map(|column| unsafe { column.get(line) })
+    }
+
+    pub fn get_component_mut<T: Component>(&mut self, entity: &Entity) -> Option<&mut T> {
+        let line = self.entities[entity];
+        let type_id = TypeId::of::<T>();
+        self.columns
+            .get_mut(&type_id)
+            .map(|column| unsafe { column.get_mut(line) })
+    }
+
     pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), EcsError> {
         let line = self.entities[entity];
         for type_id in self.intersection(table).iter() {
@@ -181,16 +199,16 @@ mod test {
 
     #[test]
     fn intersection() {
-        let arc1 = ArchetypeInfo::default();
+        let mut arc1 = ArchetypeInfo::default();
         arc1.add_component::<u8>().unwrap();
         arc1.add_component::<u16>().unwrap();
         arc1.add_component::<u32>().unwrap();
         let table1 = Table::new(&arc1);
 
-        let arc2 = ArchetypeInfo::default();
-        arc1.add_component::<u8>().unwrap();
-        arc1.add_component::<u16>().unwrap();
-        arc1.add_component::<u64>().unwrap();
+        let mut arc2 = ArchetypeInfo::default();
+        arc2.add_component::<u8>().unwrap();
+        arc2.add_component::<u16>().unwrap();
+        arc2.add_component::<u64>().unwrap();
         let table2 = Table::new(&arc2);
 
         assert_eq!(
@@ -201,13 +219,13 @@ mod test {
 
     #[test]
     fn transfer_line() {
-        let arc1 = ArchetypeInfo::default();
+        let mut arc1 = ArchetypeInfo::default();
         arc1.add_component::<u8>().unwrap();
         arc1.add_component::<u16>().unwrap();
         arc1.add_component::<u32>().unwrap();
-        let table1 = Table::new(&arc1);
+        let mut table1 = Table::new(&arc1);
 
-        let entity = Entity { id: 1, gen: 0 };
+        let entity = Entity::from_raw(1, 0);
 
         table1.add_entity(entity);
 
@@ -215,12 +233,26 @@ mod test {
         table1.insert_component(&entity, 2u16).unwrap();
         table1.insert_component(&entity, 3u32).unwrap();
 
-        let arc2 = ArchetypeInfo::default();
-        arc1.add_component::<u8>().unwrap();
-        arc1.add_component::<u16>().unwrap();
-        arc1.add_component::<u32>().unwrap();
-        let table2 = Table::new(&arc2);
+        let mut arc2 = ArchetypeInfo::default();
+        arc2.add_component::<u8>().unwrap();
+        arc2.add_component::<u16>().unwrap();
+        arc2.add_component::<u32>().unwrap();
+        let mut table2 = Table::new(&arc2);
 
+        table2.add_entity(entity);
         table2.copy_line_from(&table1, &entity).unwrap();
+
+        assert_eq!(
+            table1.get_component::<u8>(&entity),
+            table2.get_component::<u8>(&entity)
+        );
+        assert_eq!(
+            table1.get_component::<u16>(&entity),
+            table2.get_component::<u16>(&entity)
+        );
+        assert_eq!(
+            table1.get_component::<u32>(&entity),
+            table2.get_component::<u32>(&entity)
+        );
     }
 }
