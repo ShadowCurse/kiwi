@@ -105,7 +105,7 @@ impl Ecs {
             }
             None => {
                 // The entity does not have an associated compoenet
-                let arch_info = ArchetypeInfo::default();
+                let mut arch_info = ArchetypeInfo::default();
                 arch_info.add_component::<C>()?;
 
                 let new_arch_id = match self.archetypes.get_id(&arch_info) {
@@ -118,7 +118,8 @@ impl Ecs {
                     None => self.storage.new_table(&arch_info),
                 };
 
-                self.storage.insert_component(new_table_id, component)?;
+                self.storage
+                    .insert_component(new_table_id, &entity, component)?;
             }
         }
         Ok(())
@@ -153,8 +154,11 @@ impl Ecs {
                 // # Safety
                 // Save because tables ids are different
                 unsafe {
-                    self.storage
-                        .transfer_line_with_deletion(*old_table_id, new_table_id, entity)?
+                    self.storage.transfer_line_with_deletion(
+                        *old_table_id,
+                        new_table_id,
+                        entity,
+                    )?
                 };
             }
             None => Err(EcsError::NonExistingEntity)?,
