@@ -62,7 +62,7 @@ impl BlobVec {
         let slice = std::slice::from_raw_parts(ptr, self.layout.size());
         let object_slice = unsafe {
             std::slice::from_raw_parts_mut(
-                self.get_mut(index) as *mut () as *mut u8,
+                self.get_erased_ref_mut(index) as *mut () as *mut u8,
                 self.layout.size(),
             )
         };
@@ -76,7 +76,7 @@ impl BlobVec {
     pub unsafe fn insert_from_slice(&mut self, index: usize, object: &[u8]) {
         let object_slice = unsafe {
             std::slice::from_raw_parts_mut(
-                self.get_mut(index) as *mut () as *mut u8,
+                self.get_erased_ref_mut(index) as *mut () as *mut u8,
                 self.layout.size(),
             )
         };
@@ -86,7 +86,7 @@ impl BlobVec {
     /// # Safety
     /// The index should be in range 0 to blobvec.len()
     #[inline]
-    pub unsafe fn get(&self, index: usize) -> &() {
+    pub unsafe fn get<T>(&self, index: usize) -> &T {
         let data_index = index * self.layout.size();
         std::mem::transmute(&self.data[data_index])
     }
@@ -94,7 +94,23 @@ impl BlobVec {
     /// # Safety
     /// The index should be in range 0 to blobvec.len()
     #[inline]
-    pub unsafe fn get_mut(&mut self, index: usize) -> &mut () {
+    pub unsafe fn get_mut<T>(&mut self, index: usize) -> &mut T {
+        let data_index = index * self.layout.size();
+        std::mem::transmute(&mut self.data[data_index])
+    }
+
+    /// # Safety
+    /// The index should be in range 0 to blobvec.len()
+    #[inline]
+    pub unsafe fn get_erased_ref(&self, index: usize) -> &() {
+        let data_index = index * self.layout.size();
+        std::mem::transmute(&self.data[data_index])
+    }
+
+    /// # Safety
+    /// The index should be in range 0 to blobvec.len()
+    #[inline]
+    pub unsafe fn get_erased_ref_mut(&mut self, index: usize) -> &mut () {
         let data_index = index * self.layout.size();
         std::mem::transmute(&mut self.data[data_index])
     }
@@ -151,7 +167,7 @@ mod test {
     }
 
     #[test]
-    fn blob_add() {
+    fn blob_push() {
         let layout = Layout::new::<u32>();
         let mut blob = BlobVec::new(layout);
 
@@ -173,7 +189,7 @@ mod test {
         unsafe { blob.push_from_slice(&val) };
 
         assert_eq!(blob.layout, Layout::new::<u32>());
-        assert_eq!(blob.len, 2);
+        assert_eq!(blob.len, 3);
         assert_eq!(blob.data, [0, 0, 0, 0, 32, 0, 0, 0, 69, 0, 0, 0]);
     }
 
@@ -237,7 +253,7 @@ mod test {
         let val: u32 = 0;
         unsafe { blob.push(val) };
 
-        let ptr = unsafe { blob.get(0) };
+        let ptr = unsafe { blob.get_erased_ref(0) };
         let ptr: *const u8 = ptr as *const () as *const u8;
 
         assert_eq!(ptr, blob.data.as_ptr());
@@ -245,10 +261,10 @@ mod test {
         let val: u32 = 32;
         unsafe { blob.push(val) };
 
-        let ptr = unsafe { blob.get(0) };
+        let ptr = unsafe { blob.get_erased_ref(0) };
         let ptr: *const u8 = ptr as *const () as *const u8;
         assert_eq!(ptr, blob.data.as_ptr());
-        let ptr = unsafe { blob.get(1) };
+        let ptr = unsafe { blob.get_erased_ref(1) };
         let ptr: *const u8 = ptr as *const () as *const u8;
         assert_eq!(ptr, &blob.data[4] as *const u8);
     }

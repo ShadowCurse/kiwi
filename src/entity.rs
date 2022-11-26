@@ -9,6 +9,12 @@ pub struct Entity {
     gen: u16,
 }
 
+impl Entity {
+    pub fn from_raw(id: u16, gen: u16) -> Self {
+        Entity { id, gen }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct EntityGenerator {
     generations: Vec<EntityGeneration>,
