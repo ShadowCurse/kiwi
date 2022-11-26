@@ -240,6 +240,7 @@ struct ArchetypesTrieQueryIteratorEntry<'a> {
     component_index: usize,
 }
 
+#[derive(Debug)]
 struct ArchetypesTrieQueryIterator<'a, 'b> {
     entries: VecDeque<ArchetypesTrieQueryIteratorEntry<'a>>,
     components: &'b [TypeId],
@@ -248,7 +249,7 @@ struct ArchetypesTrieQueryIterator<'a, 'b> {
 
 impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
     pub fn new(initial_nodes: &'a [ArchetypeNode], components: &'b [TypeId]) -> Self {
-        let nodes = initial_nodes
+        let entries = initial_nodes
             .iter()
             .map(|node| ArchetypesTrieQueryIteratorEntry {
                 node,
@@ -256,7 +257,7 @@ impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
             })
             .collect();
         Self {
-            entries: nodes,
+            entries,
             components,
             found_nodes: VecDeque::new(),
         }
@@ -267,15 +268,6 @@ impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
     type Item = ArchetypeId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(node) = self.found_nodes.pop_front() {
-            for node in node.following_nodes.iter() {
-                self.found_nodes.push_back(node);
-            }
-            match node.archetype_id {
-                Some(archetype) => return Some(archetype),
-                None => continue,
-            }
-        }
         while let Some(entry) = self.entries.pop_front() {
             match entry
                 .node
@@ -293,7 +285,6 @@ impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
                 }
                 Ordering::Equal => {
                     if entry.component_index == self.components.len() - 1 {
-                        // return every node starting from this root
                         for node in entry.node.following_nodes.iter() {
                             self.found_nodes.push_back(node);
                         }
@@ -310,6 +301,15 @@ impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
                         }
                     }
                 }
+            }
+        }
+        while let Some(node) = self.found_nodes.pop_front() {
+            for node in node.following_nodes.iter() {
+                self.found_nodes.push_back(node);
+            }
+            match node.archetype_id {
+                Some(archetype) => return Some(archetype),
+                None => continue,
             }
         }
         None
