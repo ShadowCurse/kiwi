@@ -23,6 +23,28 @@ impl TableStorage {
         TableId(table_id)
     }
 
+    pub fn add_entity(&mut self, table_id: TableId, entity: Entity) -> Result<(), EcsError> {
+        match self.tables.get_mut(table_id.0) {
+            Some(table) => {
+                table.add_entity(entity);
+                Ok(())
+            }
+            None => Err(EcsError::TableDoesNotExist),
+        }
+    }
+
+    pub fn insert_component<T: Component>(
+        &mut self,
+        table_id: TableId,
+        entity: &Entity,
+        component: T,
+    ) -> Result<(), EcsError> {
+        match self.tables.get_mut(table_id.0) {
+            Some(table) => table.insert_component(entity, component),
+            None => Err(EcsError::TableDoesNotExist),
+        }
+    }
+
     /// # Safety
     /// This is safe as long as table ids are different
     pub unsafe fn transfer_line_with_insertion<T: Component>(
@@ -57,18 +79,6 @@ impl TableStorage {
         to.copy_line_from(from, &entity)?;
         from.remove_entity(&entity);
         Ok(())
-    }
-
-    pub fn insert_component<T: Component>(
-        &mut self,
-        table_id: TableId,
-        entity: &Entity,
-        component: T,
-    ) -> Result<(), EcsError> {
-        match self.tables.get_mut(table_id.0) {
-            Some(table) => table.insert_component(entity, component),
-            None => Err(EcsError::TableDoesNotExist),
-        }
     }
 }
 
@@ -212,8 +222,8 @@ mod test {
         let table2 = Table::new(&arc2);
 
         assert_eq!(
-            table1.intersection(&table2),
-            vec![std::any::TypeId::of::<u8>(), std::any::TypeId::of::<u16>()]
+            table1.intersection(&table2).sort_unstable(),
+            vec![std::any::TypeId::of::<u8>(), std::any::TypeId::of::<u16>()].sort_unstable()
         );
     }
 
@@ -253,6 +263,180 @@ mod test {
         assert_eq!(
             table1.get_component::<u32>(&entity),
             table2.get_component::<u32>(&entity)
+        );
+    }
+
+    #[test]
+    fn table_storage_transfer_insert() {
+        let mut arc1 = ArchetypeInfo::default();
+        arc1.add_component::<u8>().unwrap();
+        arc1.add_component::<u16>().unwrap();
+        arc1.add_component::<u32>().unwrap();
+
+        let mut table_storage = TableStorage::default();
+        let table_id_1 = table_storage.new_table(&arc1);
+
+        let entity = Entity::from_raw(1, 0);
+        table_storage.add_entity(table_id_1, entity).unwrap();
+
+        table_storage
+            .insert_component(table_id_1, &entity, 1u8)
+            .unwrap();
+        table_storage
+            .insert_component(table_id_1, &entity, 2u16)
+            .unwrap();
+        table_storage
+            .insert_component(table_id_1, &entity, 3u32)
+            .unwrap();
+
+        let mut arc2 = ArchetypeInfo::default();
+        arc2.add_component::<u8>().unwrap();
+        arc2.add_component::<u16>().unwrap();
+        arc2.add_component::<u32>().unwrap();
+        arc2.add_component::<u64>().unwrap();
+        let table_id_2 = table_storage.new_table(&arc2);
+
+        unsafe {
+            table_storage
+                .transfer_line_with_insertion(table_id_1, table_id_2, entity, 4u64)
+                .unwrap()
+        };
+
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_1.0)
+                .unwrap()
+                .entities
+                .len(),
+            0
+        );
+        assert_eq!(
+            table_storage.tables.get(table_id_1.0).unwrap().empty_lines,
+            vec![0]
+        );
+
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .entities
+                .len(),
+            1
+        );
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .get_component::<u8>(&entity)
+                .unwrap(),
+            &1u8
+        );
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .get_component::<u16>(&entity)
+                .unwrap(),
+            &2u16
+        );
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .get_component::<u32>(&entity)
+                .unwrap(),
+            &3u32
+        );
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .get_component::<u64>(&entity)
+                .unwrap(),
+            &4u64
+        );
+    }
+
+    #[test]
+    fn table_storage_transfer_delete() {
+        let mut arc1 = ArchetypeInfo::default();
+        arc1.add_component::<u8>().unwrap();
+        arc1.add_component::<u16>().unwrap();
+        arc1.add_component::<u32>().unwrap();
+
+        let mut table_storage = TableStorage::default();
+        let table_id_1 = table_storage.new_table(&arc1);
+
+        let entity = Entity::from_raw(1, 0);
+        table_storage.add_entity(table_id_1, entity).unwrap();
+
+        table_storage
+            .insert_component(table_id_1, &entity, 1u8)
+            .unwrap();
+        table_storage
+            .insert_component(table_id_1, &entity, 2u16)
+            .unwrap();
+        table_storage
+            .insert_component(table_id_1, &entity, 3u32)
+            .unwrap();
+
+        let mut arc2 = ArchetypeInfo::default();
+        arc2.add_component::<u8>().unwrap();
+        arc2.add_component::<u16>().unwrap();
+        let table_id_2 = table_storage.new_table(&arc2);
+
+        unsafe {
+            table_storage
+                .transfer_line_with_deletion(table_id_1, table_id_2, entity)
+                .unwrap()
+        };
+
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_1.0)
+                .unwrap()
+                .entities
+                .len(),
+            0
+        );
+        assert_eq!(
+            table_storage.tables.get(table_id_1.0).unwrap().empty_lines,
+            vec![0]
+        );
+
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .entities
+                .len(),
+            1
+        );
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .get_component::<u8>(&entity)
+                .unwrap(),
+            &1u8
+        );
+        assert_eq!(
+            table_storage
+                .tables
+                .get(table_id_2.0)
+                .unwrap()
+                .get_component::<u16>(&entity)
+                .unwrap(),
+            &2u16
         );
     }
 }
