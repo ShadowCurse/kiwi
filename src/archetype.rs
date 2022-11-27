@@ -19,6 +19,10 @@ impl<'a> Archetype<'a> {
     pub fn iter(&self) -> impl Iterator<Item = &TypeId> {
         self.components.iter()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.components.is_empty()
+    }
 }
 
 impl<'a> From<&'a [TypeId]> for Archetype<'a> {
@@ -55,6 +59,11 @@ impl ArchetypeInfo {
             true => Ok(()),
             false => Err(EcsError::AddingComponentDuplicate),
         }
+    }
+
+    pub fn has_component<T: Component>(&self) -> bool {
+        let component_info = ComponentInfo::new::<T>();
+        self.components.contains(&component_info)
     }
 
     pub fn remove_component<T: Component>(&mut self) -> Result<(), EcsError> {
@@ -106,6 +115,7 @@ impl Archetypes {
 #[derive(Debug, Default)]
 pub struct ArchetypesTrie {
     root_nodes: Vec<ArchetypeNode>,
+    empty_id: Option<ArchetypeId>,
 }
 
 impl ArchetypesTrie {
@@ -114,20 +124,33 @@ impl ArchetypesTrie {
         archetype: Archetype,
         archetype_id: ArchetypeId,
     ) -> Result<(), EcsError> {
-        Self::recursive_insert(
-            &mut self.root_nodes,
-            archetype.components.as_ref(),
-            0,
-            archetype_id,
-        )
+        if archetype.is_empty() {
+            self.empty_id = Some(archetype_id);
+            Ok(())
+        } else {
+            Self::recursive_insert(
+                &mut self.root_nodes,
+                archetype.components.as_ref(),
+                0,
+                archetype_id,
+            )
+        }
     }
 
     pub fn remove(&mut self, archetype: Archetype) -> Result<(), EcsError> {
-        Self::recursive_remove(&mut self.root_nodes, archetype.components.as_ref(), 0)
+        if archetype.is_empty() {
+            Ok(())
+        } else {
+            Self::recursive_remove(&mut self.root_nodes, archetype.components.as_ref(), 0)
+        }
     }
 
     pub fn search(&self, archetype: Archetype) -> Option<ArchetypeId> {
-        Self::recursive_search(&self.root_nodes, archetype.components.as_ref(), 0)
+        if archetype.is_empty() {
+            self.empty_id
+        } else {
+            Self::recursive_search(&self.root_nodes, archetype.components.as_ref(), 0)
+        }
     }
 
     pub fn query<'a, 'b>(
