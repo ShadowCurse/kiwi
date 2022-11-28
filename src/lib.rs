@@ -14,9 +14,10 @@ mod utils;
 
 use std::collections::HashMap;
 
-use archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
+use archetype::{Archetype, ArchetypeId, ArchetypeInfo, Archetypes};
 use component::Component;
 use entity::{Entity, EntityGenerator};
+use system::SystemParameter;
 use table::{TableId, TableStorage};
 
 #[derive(Debug, thiserror::Error)]
@@ -189,6 +190,21 @@ impl Ecs {
             None => Err(EcsError::NonExistingEntity)?,
         }
         Ok(())
+    }
+
+    pub fn query<'a, 'b, 'c, T: SystemParameter + 'static>(
+        &'a self,
+        archetype: &'b Archetype<'c>,
+    ) -> impl Iterator<Item = T> + 'b
+    where
+        'a: 'b,
+        'b: 'c,
+    {
+        self.storage.query(
+            self.archetypes
+                .query_ids(archetype)
+                .map(|arch_id| self.archetype_to_table[&arch_id]),
+        )
     }
 }
 

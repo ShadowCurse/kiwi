@@ -110,6 +110,16 @@ impl Archetypes {
     pub fn get_id(&self, archetype: &ArchetypeInfo) -> Option<ArchetypeId> {
         self.archetypes_trie.search(archetype.archetype())
     }
+
+    pub fn query_ids<'a, 'b>(
+        &'a self,
+        archetype: &'a Archetype<'b>,
+    ) -> impl Iterator<Item = ArchetypeId> + 'a
+    where
+        'b: 'a,
+    {
+        self.archetypes_trie.query(archetype)
+    }
 }
 
 #[derive(Debug, Default)]
