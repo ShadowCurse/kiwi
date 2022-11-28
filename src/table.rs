@@ -80,7 +80,29 @@ impl TableStorage {
         from.remove_entity(&entity);
         Ok(())
     }
+
+    pub fn query<T>(
+        &self,
+        table_id_iter: impl Iterator<Item = TableId>,
+    ) -> impl Iterator<Item = T> {
+        todo!()
+    }
 }
+
+// pub struct TableStorageIter<T> {
+
+// }
+
+// impl<T> Iterator for TableStorageIter<T> {
+//     type Item = T;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let table_id = self.tale_id_iter.next();
+//         let table = self.storage.get_table(table_id);
+//         let table_iter = table.component_iter::<T>::();
+//         table_iter.next()
+//     }
+// }
 
 #[derive(Debug, Default)]
 pub struct Table {
