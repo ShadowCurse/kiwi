@@ -1,11 +1,12 @@
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet, VecDeque},
+    marker::PhantomData,
 };
 
 use crate::{
-    blobvec::BlobVec, component::Component, entity::Entity, sparse_set::SparseSet, ArchetypeInfo,
-    EcsError,
+    blobvec::BlobVec, component::Component, entity::Entity, query::TupleIds, sparse_set::SparseSet,
+    ArchetypeInfo, EcsError,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -87,22 +88,63 @@ impl TableStorage {
     ) -> impl Iterator<Item = T> {
         todo!()
     }
+
+    fn get_table(&self, table_id: TableId) -> Option<&Table> {
+        self.tables.get(table_id.0)
+    }
 }
 
-// pub struct TableStorageIter<T> {
+pub struct TableStorageIter<
+    'a,
+    const L: usize,
+    I: Iterator<Item = TableId>,
+    C: TupleIds<L>,
+    T: Iterator<Item = C>,
+> {
+    storage: &'a TableStorage,
+    table_id_iter: I,
+    table_iter: Option<T>,
+}
 
-// }
+impl<'a, const L: usize, I, C, T> Iterator for TableStorageIter<'a, L, I, C, T>
+where
+    I: Iterator<Item = TableId>,
+    C: TupleIds<L>,
+    T: Iterator<Item = C>,
+{
+    type Item = T;
 
-// impl<T> Iterator for TableStorageIter<T> {
-//     type Item = T;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let table_id = self.tale_id_iter.next();
-//         let table = self.storage.get_table(table_id);
-//         let table_iter = table.component_iter::<T>::();
-//         table_iter.next()
-//     }
-// }
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.table_iter.as_ref() {
+            Some(table_iter) => {
+                match table_iter.next() {
+                    Some(table) => {
+                        // return Self::Item
+                        todo!()
+                    }
+                    None => {
+                        // go to new table
+                        todo!()
+                    }
+                }
+            }
+            None => {
+                match self.table_id_iter.next() {
+                    Some(table_id) => {
+                        let table = self.storage.get_table(table_id).unwrap();
+                        self.table_iter = Some(table.component_iter::<C>());
+                        // return Self::Item
+                        todo!()
+                    }
+                    None => {
+                        // no more tables
+                        None
+                    }
+                }
+            }
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Table {
@@ -222,6 +264,10 @@ impl Table {
             }
             None => Err(EcsError::TableDoesNotContainComponentColumn),
         }
+    }
+
+    pub fn component_query<const L: usize, C: TupleIds<L>>(&self) -> impl Iterator<Item = ()> {
+        todo!()
     }
 }
 

@@ -91,6 +91,8 @@ impl_tuple_ids_for_query!(C1, C2, C4, C5, C6);
 
 #[cfg(test)]
 mod test {
+    use crate::system::Systems;
+
     use super::*;
 
     #[test]
@@ -104,5 +106,20 @@ mod test {
         assert_eq!(Query::<(u8, bool, i32)>::ids(), expected);
         assert_eq!(Query::<(bool, u8, i32)>::ids(), expected);
         assert_eq!(Query::<(i32, bool, u8)>::ids(), expected);
+    }
+
+    #[test]
+    fn query_in_system() {
+        fn test_sys_query(_: Query<(u8, bool)>) {
+            println!("test_sys(_: Query::<(u8, bool)>)");
+        }
+
+        let ecs = Ecs::default();
+
+        let mut systems = Systems::default();
+
+        systems.add_system(test_sys_query);
+
+        systems.run(&ecs);
     }
 }
