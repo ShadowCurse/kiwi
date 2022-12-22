@@ -1,7 +1,6 @@
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet, VecDeque},
-    marker::PhantomData,
 };
 
 use crate::{
@@ -85,7 +84,7 @@ impl TableStorage {
     pub fn query<T>(
         &self,
         table_id_iter: impl Iterator<Item = TableId>,
-    ) -> impl Iterator<Item = T> {
+    ) -> TableStorageIter {
         todo!()
     }
 
@@ -103,7 +102,7 @@ pub struct TableStorageIter<
 > {
     storage: &'a TableStorage,
     table_id_iter: I,
-    table_iter: Option<T>,
+    component_iter: Option<T>,
 }
 
 impl<'a, const L: usize, I, C, T> Iterator for TableStorageIter<'a, L, I, C, T>
@@ -112,19 +111,18 @@ where
     C: TupleIds<L>,
     T: Iterator<Item = C>,
 {
-    type Item = T;
+    type Item = C;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.table_iter.as_ref() {
-            Some(table_iter) => {
-                match table_iter.next() {
-                    Some(table) => {
-                        // return Self::Item
-                        todo!()
+        match self.component_iter.as_ref() {
+            Some(component_iter) => {
+                match component_iter.next() {
+                    Some(component) => {
+                        Some(component)
                     }
                     None => {
-                        // go to new table
-                        todo!()
+                        self.component_iter = None;
+                        self.next()
                     }
                 }
             }
@@ -132,9 +130,10 @@ where
                 match self.table_id_iter.next() {
                     Some(table_id) => {
                         let table = self.storage.get_table(table_id).unwrap();
-                        self.table_iter = Some(table.component_iter::<C>());
-                        // return Self::Item
-                        todo!()
+                        let component_iter = table.component_iter::<L, C>();
+                        let item = component_iter.next();
+                        self.component_iter = Some(component_iter);
+                        Some(item)
                     }
                     None => {
                         // no more tables
@@ -266,7 +265,7 @@ impl Table {
         }
     }
 
-    pub fn component_query<const L: usize, C: TupleIds<L>>(&self) -> impl Iterator<Item = ()> {
+    pub fn component_iter<const L: usize, C: TupleIds<L>>(&self) -> impl Iterator<Item = C> {
         todo!()
     }
 }
