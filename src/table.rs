@@ -1,6 +1,7 @@
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet, VecDeque},
+    marker::PhantomData,
 };
 
 use crate::{
@@ -81,11 +82,17 @@ impl TableStorage {
         Ok(())
     }
 
-    pub fn query<T>(
-        &self,
-        table_id_iter: impl Iterator<Item = TableId>,
-    ) -> TableStorageIter {
-        todo!()
+    pub fn query<const L: usize, I, C>(&self, table_id_iter: I) -> TableStorageIterator<'_, L, I, C>
+    where
+        I: Iterator<Item = TableId>,
+        C: TupleIds<L>,
+    {
+        TableStorageIterator {
+            storage: self,
+            table_id_iter,
+            component_iter: None,
+            phantom: PhantomData,
+        }
     }
 
     fn get_table(&self, table_id: TableId) -> Option<&Table> {
@@ -93,54 +100,41 @@ impl TableStorage {
     }
 }
 
-pub struct TableStorageIter<
-    'a,
-    const L: usize,
-    I: Iterator<Item = TableId>,
-    C: TupleIds<L>,
-    T: Iterator<Item = C>,
-> {
-    storage: &'a TableStorage,
-    table_id_iter: I,
-    component_iter: Option<T>,
-}
-
-impl<'a, const L: usize, I, C, T> Iterator for TableStorageIter<'a, L, I, C, T>
+pub struct TableStorageIterator<'a, const L: usize, I, C>
 where
     I: Iterator<Item = TableId>,
     C: TupleIds<L>,
-    T: Iterator<Item = C>,
 {
-    type Item = C;
+    storage: &'a TableStorage,
+    table_id_iter: I,
+    component_iter: Option<TableIterator<'a, L>>,
+    phantom: PhantomData<C>,
+}
+
+impl<'a, const L: usize, I, C> Iterator for TableStorageIterator<'a, L, I, C>
+where
+    I: Iterator<Item = TableId>,
+    C: TupleIds<L>,
+{
+    type Item = <TableIterator<'a, L> as Iterator>::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.component_iter.as_ref() {
-            Some(component_iter) => {
-                match component_iter.next() {
-                    Some(component) => {
-                        Some(component)
-                    }
-                    None => {
-                        self.component_iter = None;
-                        self.next()
-                    }
+        match self.component_iter {
+            Some(ref mut component_iter) => match component_iter.next() {
+                Some(component) => Some(component),
+                None => {
+                    self.component_iter = None;
+                    self.next()
                 }
-            }
-            None => {
-                match self.table_id_iter.next() {
-                    Some(table_id) => {
-                        let table = self.storage.get_table(table_id).unwrap();
-                        let component_iter = table.component_iter::<L, C>();
-                        let item = component_iter.next();
-                        self.component_iter = Some(component_iter);
-                        Some(item)
-                    }
-                    None => {
-                        // no more tables
-                        None
-                    }
+            },
+            None => match self.table_id_iter.next() {
+                Some(table_id) => {
+                    let table = self.storage.get_table(table_id).unwrap();
+                    self.component_iter = Some(table.component_iter::<L, C>());
+                    self.next()
                 }
-            }
+                None => None,
+            },
         }
     }
 }
@@ -265,8 +259,33 @@ impl Table {
         }
     }
 
-    pub fn component_iter<const L: usize, C: TupleIds<L>>(&self) -> impl Iterator<Item = C> {
-        todo!()
+    pub fn component_iter<const L: usize, C: TupleIds<L>>(&self) -> TableIterator<'_, L> {
+        let columns = C::ids().map(|id| &self.columns[&id]);
+        TableIterator {
+            columns,
+            curr_line: 0,
+        }
+    }
+}
+
+pub struct TableIterator<'a, const L: usize> {
+    columns: [&'a BlobVec; L],
+    curr_line: usize,
+}
+
+impl<'a, const L: usize> Iterator for TableIterator<'a, L> {
+    type Item = [&'a (); L];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.curr_line < self.columns[0].len() {
+            let vals = self
+                .columns
+                .map(|column| unsafe { column.get_erased_ref(self.curr_line) });
+            self.curr_line += 1;
+            Some(vals)
+        } else {
+            None
+        }
     }
 }
 
@@ -288,10 +307,12 @@ mod test {
         arc2.add_component::<u64>().unwrap();
         let table2 = Table::new(&arc2);
 
-        assert_eq!(
-            table1.intersection(&table2).sort_unstable(),
-            vec![std::any::TypeId::of::<u8>(), std::any::TypeId::of::<u16>()].sort_unstable()
-        );
+        let mut intersection = table1.intersection(&table2);
+        intersection.sort_unstable();
+
+        let mut expected = vec![std::any::TypeId::of::<u8>(), std::any::TypeId::of::<u16>()];
+        expected.sort_unstable();
+        assert_eq!(intersection, expected);
     }
 
     #[test]

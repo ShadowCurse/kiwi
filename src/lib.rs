@@ -17,8 +17,8 @@ use std::collections::HashMap;
 use archetype::{Archetype, ArchetypeId, ArchetypeInfo, Archetypes};
 use component::Component;
 use entity::{Entity, EntityGenerator};
-use system::SystemParameter;
-use table::{TableId, TableStorage};
+use query::TupleIds;
+use table::{TableId, TableIterator, TableStorage};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EcsError {
@@ -66,8 +66,7 @@ impl Ecs {
     pub fn entity_component_info(&self, entity: Entity) -> Option<&ArchetypeInfo> {
         self.entity_to_archetype
             .get(&entity)
-            .map(|arch| self.archetypes.get_info(*arch))
-            .flatten()
+            .and_then(|arch| self.archetypes.get_info(*arch))
     }
 
     /// Adds component to the entity
@@ -98,6 +97,8 @@ impl Ecs {
                         new_arch_id
                     }
                 };
+
+                self.entity_to_archetype.insert(entity, new_arch_id);
 
                 let new_table_id = match self.archetype_to_table.get(&new_arch_id) {
                     Some(new_table_id) => *new_table_id,
@@ -192,28 +193,32 @@ impl Ecs {
         Ok(())
     }
 
-    pub fn query<'a, 'b, 'c, T: SystemParameter + 'static>(
+    pub fn query<'a, 'b, 'c, const L: usize, C>(
         &'a self,
         archetype: &'b Archetype<'c>,
-    ) -> impl Iterator<Item = T> + 'b
+    ) -> impl Iterator<Item = [&'a (); L]> + '_
     where
-        'a: 'b,
+        'c: 'a,
         'b: 'c,
+        C: TupleIds<L> + 'a,
     {
-        self.storage.query(
-            self.archetypes
-                .query_ids(archetype)
-                .map(|arch_id| self.archetype_to_table[&arch_id]),
-        )
+        let table_id_iter = self
+            .archetypes
+            .query_ids(archetype)
+            .map(|arch_id| self.archetype_to_table[&arch_id]);
+
+        self.storage.query::<L, _, C>(table_id_iter)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::query::Query;
+
     use super::*;
 
     #[test]
-    fn create_entity_and_add_and_remove_component() {
+    fn ecs_create_entity_and_add_and_remove_component() {
         let mut ecs = Ecs::default();
 
         let entity = ecs.create();
@@ -234,5 +239,81 @@ mod tests {
         assert!(!info.has_component::<u8>());
         assert!(!info.has_component::<u16>());
         assert!(!info.has_component::<u32>());
+    }
+
+    #[test]
+    fn ecs_multiple_entities() {
+        let mut ecs = Ecs::default();
+
+        let entity = ecs.create();
+        ecs.add_component(entity, 1u8).unwrap();
+        ecs.add_component(entity, 2u16).unwrap();
+        ecs.add_component(entity, 3u32).unwrap();
+
+        let info = ecs.entity_component_info(entity).unwrap();
+        assert!(info.has_component::<u8>());
+        assert!(info.has_component::<u16>());
+        assert!(info.has_component::<u32>());
+
+        let entity2 = ecs.create();
+        ecs.add_component(entity2, 1u8).unwrap();
+        ecs.add_component(entity2, 2u16).unwrap();
+        ecs.add_component(entity2, 3u32).unwrap();
+
+        let info = ecs.entity_component_info(entity2).unwrap();
+        assert!(info.has_component::<u8>());
+        assert!(info.has_component::<u16>());
+        assert!(info.has_component::<u32>());
+    }
+
+    #[test]
+    fn ecs_query() {
+        let mut ecs = Ecs::default();
+
+        let entity = ecs.create();
+        ecs.add_component(entity, 1u8).unwrap();
+        ecs.add_component(entity, 2u16).unwrap();
+        ecs.add_component(entity, 3u32).unwrap();
+
+        let entity2 = ecs.create();
+        ecs.add_component(entity2, 4u8).unwrap();
+        ecs.add_component(entity2, 6u16).unwrap();
+        ecs.add_component(entity2, 8u32).unwrap();
+
+        let query_ids = Query::<(u8,)>::ids_ref();
+        let archetype: Archetype = query_ids.into();
+        let query = ecs.query::<1, Query<(u8,)>>(&archetype);
+        let res = query
+            .map(|q| {
+                let c1: &u8 = unsafe { std::mem::transmute(q[0]) };
+                c1
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(res, [&1, &4]);
+
+        let query_ids = Query::<(u8, u16)>::ids_ref();
+        let archetype: Archetype = query_ids.into();
+        let query = ecs.query::<2, Query<(u8, u16)>>(&archetype);
+        let res = query
+            .map(|q| {
+                let c1: &u8 = unsafe { std::mem::transmute(q[0]) };
+                let c2: &u16 = unsafe { std::mem::transmute(q[1]) };
+                (c1, c2)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(res, [(&1, &2), (&4, &6)]);
+
+        let query_ids = Query::<(u8, u16, u32)>::ids_ref();
+        let archetype: Archetype = query_ids.into();
+        let query = ecs.query::<3, Query<(u8, u16, u32)>>(&archetype);
+        let res = query
+            .map(|q| {
+                let c1: &u8 = unsafe { std::mem::transmute(q[0]) };
+                let c2: &u16 = unsafe { std::mem::transmute(q[1]) };
+                let c3: &u32 = unsafe { std::mem::transmute(q[2]) };
+                (c1, c2, c3)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(res, [(&1, &2, &3), (&4, &6, &8)]);
     }
 }
