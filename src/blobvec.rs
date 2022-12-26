@@ -235,14 +235,13 @@ mod test {
             c: (6, 9),
         };
         unsafe { blob.push(val) };
-        assert_eq!(blob.data, [1, 0, 0, 0, 1, 6, 9, 0]);
 
         let val_as_slice = unsafe { blob.get_as_byte_slice(0) };
-        assert_eq!(val_as_slice, [1, 0, 0, 0, 1, 6, 9, 0]);
+        assert_eq!(val_as_slice, blob.data);
 
-        let mut blob = BlobVec::new(layout);
-        unsafe { blob.push_from_slice(val_as_slice) };
-        assert_eq!(blob.data, [1, 0, 0, 0, 1, 6, 9, 0]);
+        let mut new_blob = BlobVec::new(layout);
+        unsafe { new_blob.push_from_slice(val_as_slice) };
+        assert_eq!(new_blob.data, blob.data);
     }
 
     #[test]
