@@ -5,12 +5,17 @@ use crate::{
     count_tts,
     system::{SystemParameter, SystemParameterFetch},
     utils::static_sort,
-    Ecs, archetype::Archetype,
+    Ecs,
 };
 
 pub trait TupleIds<const L: usize> {
     const IDS: [TypeId; L];
-    fn ids() -> &'static [TypeId] {
+
+    fn ids() -> [TypeId; L] {
+        Self::IDS
+    }
+
+    fn ids_ref() -> &'static [TypeId] {
         &Self::IDS
     }
 }
@@ -18,17 +23,6 @@ pub trait TupleIds<const L: usize> {
 pub struct Query<'ecs, T> {
     ecs: &'ecs Ecs,
     phantom: PhantomData<T>,
-}
-
-impl<'a, T> Query<'a, (T,)>
-where
-    T: Component,
-{
-    fn iter<'b>(&self) {
-        let archetype: Archetype<'static> = Self::ids().into();
-        // TODO should be (T,)
-        self.ecs.query::<'a, 'b, 'static, ()>(&archetype);
-    }
 }
 
 impl<'a, T> SystemParameter for Query<'a, T> {
