@@ -1,6 +1,6 @@
 use std::{
     any::TypeId,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{hash_map::Values, HashMap, HashSet, VecDeque},
     marker::PhantomData,
 };
 
@@ -121,7 +121,10 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         match self.component_iter {
             Some(ref mut component_iter) => match component_iter.next() {
-                Some(component) => Some(component),
+                Some(component) => {
+                    // println!("returninig: {component:?}");
+                    Some(component)
+                }
                 None => {
                     self.component_iter = None;
                     self.next()
@@ -129,6 +132,7 @@ where
             },
             None => match self.table_id_iter.next() {
                 Some(table_id) => {
+                    // println!("no component_iter, new table_id: {table_id:?}");
                     let table = self.storage.get_table(table_id).unwrap();
                     self.component_iter = Some(table.component_iter::<L, C>());
                     self.next()
@@ -259,33 +263,32 @@ impl Table {
         }
     }
 
-    pub fn component_iter<const L: usize, C: TupleIds<L>>(&self) -> TableIterator<'_, L> {
+    pub fn component_iter<const L: usize, C>(&self) -> TableIterator<'_, L>
+    where
+        C: TupleIds<L>,
+    {
         let columns = C::ids().map(|id| &self.columns[&id]);
         TableIterator {
             columns,
-            curr_line: 0,
+            entities: self.entities.values(),
         }
     }
 }
 
+#[derive(Debug)]
 pub struct TableIterator<'a, const L: usize> {
     columns: [&'a BlobVec; L],
-    curr_line: usize,
+    entities: Values<'a, Entity, usize>,
 }
 
 impl<'a, const L: usize> Iterator for TableIterator<'a, L> {
     type Item = [&'a (); L];
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.curr_line < self.columns[0].len() {
-            let vals = self
-                .columns
-                .map(|column| unsafe { column.get_erased_ref(self.curr_line) });
-            self.curr_line += 1;
-            Some(vals)
-        } else {
-            None
-        }
+        self.entities.next().map(|line| {
+            self.columns
+                .map(|column| unsafe { column.get_erased_ref(*line) })
+        })
     }
 }
 
