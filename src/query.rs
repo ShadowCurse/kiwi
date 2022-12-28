@@ -25,16 +25,17 @@ pub struct Query<'ecs, T> {
     phantom: PhantomData<T>,
 }
 
-impl<'a, T> SystemParameter for Query<'a, T> {
-    type Fetch = QueryFetch<T>;
+impl<'a, T> SystemParameter for Query<'a, T>
+{
+    type Fetch<'b> = QueryFetch<T>;
 }
 
 pub struct QueryFetch<T>(PhantomData<T>);
 
-impl<'ecs, T> SystemParameterFetch<'ecs> for QueryFetch<T> {
-    type Item = Query<'ecs, T>;
+impl<T> SystemParameterFetch for QueryFetch<T> {
+    type Item<'a> = Query<'a, T>;
 
-    fn fetch(ecs: &'ecs Ecs) -> Self::Item {
+    fn fetch(ecs: &Ecs) -> Self::Item<'_> {
         Self::Item {
             ecs,
             phantom: PhantomData,
