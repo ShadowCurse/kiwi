@@ -7,12 +7,13 @@ pub trait System: 'static {
 }
 
 pub trait SystemParameter: Sized {
-    type Fetch: for<'ecs> SystemParameterFetch<'ecs>;
+    type Fetch<'a>: SystemParameterFetch;
 }
 
-pub trait SystemParameterFetch<'ecs> {
-    type Item: SystemParameter<Fetch = Self>;
-    fn fetch(ecs: &'ecs Ecs) -> Self::Item;
+pub trait SystemParameterFetch {
+    type Item<'a>: SystemParameter<Fetch<'a> = Self>;
+
+    fn fetch<'ecs>(ecs: &'ecs Ecs) -> Self::Item<'_>;
 }
 
 pub trait IntoSystem<Params> {
@@ -31,7 +32,12 @@ pub struct Systems {
 }
 
 impl Systems {
-    pub fn add_system<S: IntoSystem<P>, P: SystemParameter>(&mut self, system: S) {
+    pub fn add_system<S, P, F>(&mut self, system: S)
+    where
+        S: IntoSystem<P>,
+        P: for<'b> SystemParameter<Fetch<'b> = F>,
+        F: for<'a> SystemParameterFetch<Item<'a> = P>,
+    {
         self.systems.push(Box::new(system.into_system()));
     }
 
@@ -45,8 +51,8 @@ impl Systems {
 impl<S, P, F> IntoSystem<P> for S
 where
     S: SystemParameterFunction<P> + 'static,
-    P: SystemParameter<Fetch = F> + 'static,
-    F: for<'a> SystemParameterFetch<'a, Item = P>,
+    P: for<'b> SystemParameter<Fetch<'b> = F> + 'static,
+    F: for<'a> SystemParameterFetch<Item<'a> = P>,
 {
     type Output = FunctionSystem<S, P>;
 
@@ -66,8 +72,8 @@ pub struct FunctionSystem<S, Params: SystemParameter> {
 impl<S, P, F> System for FunctionSystem<S, P>
 where
     S: SystemParameterFunction<P> + 'static,
-    P: SystemParameter<Fetch = F> + 'static,
-    F: for<'a> SystemParameterFetch<'a, Item = P>,
+    P: for<'b> SystemParameter<Fetch<'b> = F> + 'static,
+    F: for<'a> SystemParameterFetch<Item<'a> = P>,
 {
     fn run(&mut self, ecs: &Ecs) {
         let params = P::Fetch::fetch(ecs);
@@ -109,14 +115,14 @@ impl_system_param_func!(P1, P2, P3, P4, P5);
 
 macro_rules! impl_system_param_tuple {
     ($($t:ident),*) => {
-        impl<'ecs, $($t),*> SystemParameterFetch<'ecs> for ($($t),*,)
-        where $($t: SystemParameterFetch<'ecs>),*,
+        impl<$($t),*> SystemParameterFetch for ($($t),*,)
+        where $($t: SystemParameterFetch),*,
         {
-            type Item = (
-                $($t::Item),*,
+            type Item<'a> = (
+                $($t::Item<'a>),*,
             );
 
-            fn fetch(ecs: &'ecs Ecs) -> Self::Item {
+            fn fetch<'ecs>(ecs: &'ecs Ecs) -> Self::Item<'ecs> {
                 (
                     $($t::fetch(ecs)),*
                     ,
@@ -127,20 +133,20 @@ macro_rules! impl_system_param_tuple {
         impl<$($t),*> SystemParameter for ($($t),*,)
         where $($t: SystemParameter),*,
         {
-            type Fetch = ($($t::Fetch,)*);
+            type Fetch<'a> = ($($t::Fetch<'a>,)*);
         }
     };
 }
 
 impl SystemParameter for () {
-    type Fetch = TupleFetch;
+    type Fetch<'a> = TupleFetch;
 }
 
 pub struct TupleFetch;
-impl<'ecs> SystemParameterFetch<'ecs> for TupleFetch {
-    type Item = ();
+impl SystemParameterFetch for TupleFetch {
+    type Item<'a> = ();
 
-    fn fetch(_ecs: &'ecs Ecs) -> Self::Item {}
+    fn fetch(_ecs: &'_ Ecs) -> Self::Item<'_> {}
 }
 
 impl_system_param_tuple!(P1);
@@ -154,26 +160,26 @@ mod test {
     use super::*;
 
     pub struct BoolFetch;
-    impl<'ecs> SystemParameterFetch<'ecs> for BoolFetch {
-        type Item = bool;
-        fn fetch(_: &'ecs Ecs) -> Self::Item {
+    impl SystemParameterFetch for BoolFetch {
+        type Item<'a> = bool;
+        fn fetch(_: &'_ Ecs) -> Self::Item<'_> {
             true
         }
     }
 
     impl SystemParameter for bool {
-        type Fetch = BoolFetch;
+        type Fetch<'a> = BoolFetch;
     }
 
     pub struct U32Fetch;
-    impl<'ecs> SystemParameterFetch<'ecs> for U32Fetch {
-        type Item = u32;
-        fn fetch(_: &'ecs Ecs) -> Self::Item {
+    impl SystemParameterFetch for U32Fetch {
+        type Item<'a> = u32;
+        fn fetch(_: &'_ Ecs) -> Self::Item<'_> {
             0
         }
     }
     impl SystemParameter for u32 {
-        type Fetch = U32Fetch;
+        type Fetch<'a> = U32Fetch;
     }
 
     #[test]
