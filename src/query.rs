@@ -20,30 +20,50 @@ pub trait TupleIds<const L: usize> {
     }
 }
 
-pub struct Query<T> {
+pub struct Query<'ecs, T> {
+    ecs: &'ecs Ecs,
     phantom: PhantomData<T>,
 }
 
-impl<T> SystemParameter for Query<T>
+impl<'a, T> SystemParameter for Query<'a, T>
 {
-    type Fetch<'b> = QueryFetch<T>;
+    type Fetch = QueryFetch<T>;
 }
 
 pub struct QueryFetch<T>(PhantomData<T>);
 
 impl<T> SystemParameterFetch for QueryFetch<T> {
-    type Item<'a> = Query<T>;
+    type Item<'a> = Query<'a, T>;
 
-    fn fetch(_ecs: &Ecs) -> Self::Item<'_> {
+    fn fetch(ecs: &Ecs) -> Self::Item<'_> {
         Self::Item {
+            ecs,
             phantom: PhantomData,
         }
     }
 }
 
+struct QueryIter<Iter, T>
+where
+    Iter: Iterator<Item = T>,
+{
+    inner_iter: Iter,
+}
+
+impl<Iter, T> Iterator for QueryIter<Iter, T>
+where
+    Iter: Iterator<Item = T>,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner_iter.next()
+    }
+}
+
 macro_rules! impl_tuple_ids_for_query {
     ($($t:ident),*) => {
-        impl<$($t),*> TupleIds<{count_tts!($($t)*)}> for Query<($($t,)*)>
+        impl<$($t),*> TupleIds<{count_tts!($($t)*)}> for Query<'_, ($($t,)*)>
         where
             $($t: Component),*,
         {

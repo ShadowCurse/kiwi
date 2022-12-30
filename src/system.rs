@@ -7,14 +7,16 @@ pub trait System: 'static {
 }
 
 pub trait SystemParameter: Sized {
-    type Fetch<'a>: SystemParameterFetch;
+    type Fetch: SystemParameterFetch;
 }
 
 pub trait SystemParameterFetch {
-    type Item<'a>: SystemParameter<Fetch<'a> = Self>;
+    type Item<'a>: SystemParameter<Fetch = Self>;
 
-    fn fetch<'ecs>(ecs: &'ecs Ecs) -> Self::Item<'_>;
+    fn fetch(ecs: &Ecs) -> Self::Item<'_>;
 }
+
+pub type SystemParameterItem<'w, P> = <<P as SystemParameter>::Fetch as SystemParameterFetch>::Item<'w>;
 
 pub trait IntoSystem<Params> {
     type Output: System;
@@ -22,8 +24,9 @@ pub trait IntoSystem<Params> {
     fn into_system(self) -> Self::Output;
 }
 
+
 pub trait SystemParameterFunction<Parameter: SystemParameter>: 'static {
-    fn run(&mut self, params: Parameter);
+    fn run(&mut self, params: SystemParameterItem<Parameter>);
 }
 
 #[derive(Default)]
@@ -32,11 +35,10 @@ pub struct Systems {
 }
 
 impl Systems {
-    pub fn add_system<S, P, F>(&mut self, system: S)
+    pub fn add_system<S, P>(&mut self, system: S)
     where
         S: IntoSystem<P>,
-        P: for<'b> SystemParameter<Fetch<'b> = F>,
-        F: for<'a> SystemParameterFetch<Item<'a> = P>,
+        P: SystemParameter,
     {
         self.systems.push(Box::new(system.into_system()));
     }
@@ -48,11 +50,10 @@ impl Systems {
     }
 }
 
-impl<S, P, F> IntoSystem<P> for S
+impl<S, P> IntoSystem<P> for S
 where
     S: SystemParameterFunction<P> + 'static,
-    P: for<'b> SystemParameter<Fetch<'b> = F> + 'static,
-    F: for<'a> SystemParameterFetch<Item<'a> = P>,
+    P: SystemParameter + 'static,
 {
     type Output = FunctionSystem<S, P>;
 
@@ -69,11 +70,10 @@ pub struct FunctionSystem<S, Params: SystemParameter> {
     params: PhantomData<Params>,
 }
 
-impl<S, P, F> System for FunctionSystem<S, P>
+impl<S, P> System for FunctionSystem<S, P>
 where
     S: SystemParameterFunction<P> + 'static,
-    P: for<'b> SystemParameter<Fetch<'b> = F> + 'static,
-    F: for<'a> SystemParameterFetch<Item<'a> = P>,
+    P: SystemParameter + 'static,
 {
     fn run(&mut self, ecs: &Ecs) {
         let params = P::Fetch::fetch(ecs);
@@ -86,9 +86,10 @@ macro_rules! impl_system_param_func {
         impl<F, $($t),*> SystemParameterFunction<($($t, )*)> for F
         where
             F: Fn($($t),*) + 'static,
+            F: Fn($(SystemParameterItem<$t>),*) + 'static,
             $($t: SystemParameter),*,
         {
-            fn run(&mut self, params: ($($t, )*)) {
+            fn run(&mut self, params: SystemParameterItem<($($t, )*)>) {
                 // TODO
                 // maybe try with tuple unpacking
                 // to avoid relying of nightly features
@@ -133,13 +134,13 @@ macro_rules! impl_system_param_tuple {
         impl<$($t),*> SystemParameter for ($($t),*,)
         where $($t: SystemParameter),*,
         {
-            type Fetch<'a> = ($($t::Fetch<'a>,)*);
+            type Fetch = ($($t::Fetch,)*);
         }
     };
 }
 
 impl SystemParameter for () {
-    type Fetch<'a> = TupleFetch;
+    type Fetch = TupleFetch;
 }
 
 pub struct TupleFetch;
@@ -168,7 +169,7 @@ mod test {
     }
 
     impl SystemParameter for bool {
-        type Fetch<'a> = BoolFetch;
+        type Fetch = BoolFetch;
     }
 
     pub struct U32Fetch;
@@ -179,11 +180,11 @@ mod test {
         }
     }
     impl SystemParameter for u32 {
-        type Fetch<'a> = U32Fetch;
+        type Fetch = U32Fetch;
     }
 
     #[test]
-    fn add_and_run_systems() {
+    fn systems_add_and_run_systems() {
         fn test_sys() {
             println!("test_sys()");
         }
