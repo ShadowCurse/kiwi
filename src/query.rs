@@ -1,39 +1,50 @@
-use std::{any::TypeId, marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::{
-    component::Component,
-    count_tts,
+    archetype::Archetype,
+    component::ComponentTuple,
     system::{SystemParameter, SystemParameterFetch},
-    utils::static_sort,
     Ecs,
 };
 
-pub trait TupleIds<const L: usize> {
-    const IDS: [TypeId; L];
-
-    fn ids() -> [TypeId; L] {
-        Self::IDS
-    }
-
-    fn ids_ref() -> &'static [TypeId] {
-        &Self::IDS
-    }
-}
-
-pub struct Query<'ecs, T> {
+pub struct Query<'ecs, T, const L: usize>
+where
+    T: ComponentTuple<L>,
+{
     ecs: &'ecs Ecs,
     phantom: PhantomData<T>,
 }
 
-impl<'a, T> SystemParameter for Query<'a, T>
+// impl<'ecs, T, const L: usize> Query<'ecs, T, L>
+// where
+//     T: ComponentTuple<L>,
+// {
+//     fn iter(&self) -> impl Iterator<Item = T> {
+//         let archetype: Archetype = T::ids_ref().into();
+//         let inner_iter = self.ecs.query::<L, T>(&archetype);
+//         QueryIter { inner_iter, phantom: PhantomData }
+//     }
+// }
+
+impl<'a, T, const L: usize> SystemParameter for Query<'a, T, L>
+where
+    T: ComponentTuple<L>,
 {
-    type Fetch = QueryFetch<T>;
+    type Fetch = QueryFetch<T, L>;
 }
 
-pub struct QueryFetch<T>(PhantomData<T>);
+pub struct QueryFetch<T, const L: usize>
+where
+    T: ComponentTuple<L>,
+{
+    phantom: PhantomData<T>,
+}
 
-impl<T> SystemParameterFetch for QueryFetch<T> {
-    type Item<'a> = Query<'a, T>;
+impl<T, const L: usize> SystemParameterFetch for QueryFetch<T, L>
+where
+    T: ComponentTuple<L>,
+{
+    type Item<'a> = Query<'a, T, L>;
 
     fn fetch(ecs: &Ecs) -> Self::Item<'_> {
         Self::Item {
@@ -43,58 +54,46 @@ impl<T> SystemParameterFetch for QueryFetch<T> {
     }
 }
 
-struct QueryIter<Iter, T>
+struct QueryIter<'ecs, I, T, const L: usize>
 where
-    Iter: Iterator<Item = T>,
+    I: Iterator<Item = [&'ecs (); L]>,
+    T: ComponentTuple<L>,
 {
-    inner_iter: Iter,
+    inner_iter: I,
+    phantom: PhantomData<T>,
 }
 
-impl<Iter, T> Iterator for QueryIter<Iter, T>
+impl<'ecs, I, T, const L: usize> QueryIter<'ecs, I, T, L>
 where
-    Iter: Iterator<Item = T>,
+    I: Iterator<Item = [&'ecs (); L]>,
+    T: ComponentTuple<L>,
+{
+    pub fn new(inner_iter: I) -> Self {
+        Self {
+            inner_iter,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'ecs, I, T, const L: usize> Iterator for QueryIter<'ecs, I, T, L>
+where
+    I: Iterator<Item = [&'ecs (); L]>,
+    T: ComponentTuple<L>,
 {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner_iter.next()
+        self.inner_iter
+            .next()
+            .map(|array| unsafe { T::from_erased_ref_array(array) })
     }
 }
 
-macro_rules! impl_tuple_ids_for_query {
-    ($($t:ident),*) => {
-        impl<$($t),*> TupleIds<{count_tts!($($t)*)}> for Query<'_, ($($t,)*)>
-        where
-            $($t: Component),*,
-        {
-            // TODO
-            // Currently we transform TypeId to u64, but this is wrond
-            // Wait untill TypId can be compared in compile time and change this mess
-            const IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids_u64: [u64; count_tts!($($t)*)] = [$(unsafe { std::mem::transmute::<_, u64>(TypeId::of::<$t>()) }),*];
-                let ids_u64 = static_sort(ids_u64, 0, count_tts!($($t)*) as isize - 1);
-                let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<$t>()),*];
-                let mut _index = 0;
-                $(
-                    let _ = TypeId::of::<$t>();
-                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
-                    _index += 1;
-                )*
-               ids_type_id
-            };
-        }
-
-    };
-}
-
-impl_tuple_ids_for_query!(C1);
-impl_tuple_ids_for_query!(C1, C2);
-impl_tuple_ids_for_query!(C1, C2, C4);
-impl_tuple_ids_for_query!(C1, C2, C4, C5);
-impl_tuple_ids_for_query!(C1, C2, C4, C5, C6);
-
 #[cfg(test)]
 mod test {
+    use std::any::TypeId;
+
     use crate::system::Systems;
 
     use super::*;
@@ -107,15 +106,15 @@ mod test {
             TypeId::of::<i32>(),
         ];
         expected.sort_unstable();
-        assert_eq!(Query::<(u8, bool, i32)>::ids(), expected);
-        assert_eq!(Query::<(bool, u8, i32)>::ids(), expected);
-        assert_eq!(Query::<(i32, bool, u8)>::ids(), expected);
+        assert_eq!(<(&u8, &bool, &i32)>::ids(), expected);
+        assert_eq!(<(&bool, &u8, &i32)>::ids(), expected);
+        assert_eq!(<(&i32, &bool, &u8)>::ids(), expected);
     }
 
     #[test]
     fn query_in_system() {
-        fn test_sys_query(_: Query<(u8, bool)>) {
-            println!("test_sys(_: Query::<(u8, bool)>)");
+        fn test_sys_query(_: Query<(&u8, &bool), 2>) {
+            println!("test_sys(_: Query::<(&u8, &bool)>)");
         }
 
         let ecs = Ecs::default();
