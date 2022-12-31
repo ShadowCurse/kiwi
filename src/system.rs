@@ -160,28 +160,26 @@ impl_system_param_tuple!(P1, P2, P3, P4, P5);
 mod test {
     use super::*;
 
-    pub struct BoolFetch;
-    impl SystemParameterFetch for BoolFetch {
-        type Item<'a> = bool;
-        fn fetch(_: &'_ Ecs) -> Self::Item<'_> {
-            true
-        }
+    macro_rules! impl_dummy_sys_param {
+        ($fetch:ident, $t:tt) => {
+            pub struct $fetch;
+            impl SystemParameterFetch for $fetch {
+                type Item<'a> = $t;
+                fn fetch(_: &'_ Ecs) -> Self::Item<'_> {
+                    Default::default()
+                }
+            }
+            impl SystemParameter for $t {
+                type Fetch = $fetch;
+            }
+        };
     }
 
-    impl SystemParameter for bool {
-        type Fetch = BoolFetch;
-    }
-
-    pub struct U32Fetch;
-    impl SystemParameterFetch for U32Fetch {
-        type Item<'a> = u32;
-        fn fetch(_: &'_ Ecs) -> Self::Item<'_> {
-            0
-        }
-    }
-    impl SystemParameter for u32 {
-        type Fetch = U32Fetch;
-    }
+    impl_dummy_sys_param!(BoolFetch, bool);
+    impl_dummy_sys_param!(U8Fetch, u8);
+    impl_dummy_sys_param!(U16Fetch, u16);
+    impl_dummy_sys_param!(U32Fetch, u32);
+    impl_dummy_sys_param!(U64Fetch, u64);
 
     #[test]
     fn systems_add_and_run_systems() {
