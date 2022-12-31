@@ -399,30 +399,18 @@ mod test {
 
         let _ = arc.add_component::<A>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
-        println!("-----------------------");
-        println!("{:#?}", trie);
-        println!("-----------------------");
 
         let _ = arc.add_component::<B>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
-        println!("-----------------------");
-        println!("{:#?}", trie);
-        println!("-----------------------");
 
         let _ = arc.add_component::<C>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
-        println!("-----------------------");
-        println!("{:#?}", trie);
-        println!("-----------------------");
 
         let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<B>();
         let _ = arc.add_component::<C>();
         let _ = arc.add_component::<D>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
-        println!("-----------------------");
-        println!("{:#?}", trie);
-        println!("-----------------------");
 
         let mut arc = ArchetypeInfo::default();
         let _ = arc.add_component::<A>();
@@ -430,9 +418,6 @@ mod test {
         let _ = arc.add_component::<D>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
         assert!(trie.insert(arc.archetype(), some_arc_id).is_err());
-        println!("-----------------------");
-        println!("{:#?}", trie);
-        println!("-----------------------");
     }
 
     #[test]
