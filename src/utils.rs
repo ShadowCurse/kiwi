@@ -61,3 +61,19 @@ macro_rules! replace_expr {
 macro_rules! count_tts {
     ($($tts:tt)*) => {0usize $(+ $crate::replace_expr!($tts 1usize))*};
 }
+
+#[macro_export]
+macro_rules! tuple_from_array {
+    ($total:ident, $array:ident, $head:tt,) => {
+        (
+            std::mem::transmute($array[$total - 1]),
+        )
+    };
+
+    ($total:ident, $array:ident, $head:tt, $($tail:tt,)*) => {
+            (
+                std::mem::transmute($array[$total - $crate::count_tts!($($tail)*)]),
+                $crate::tuple_from_array!($total, $array, $($tail,)*),
+            )
+    };
+}

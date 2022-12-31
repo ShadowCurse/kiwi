@@ -5,7 +5,10 @@ use std::{
 };
 
 use crate::{
-    blobvec::BlobVec, component::Component, entity::Entity, query::TupleIds, sparse_set::SparseSet,
+    blobvec::BlobVec,
+    component::{Component, ComponentTuple},
+    entity::Entity,
+    sparse_set::SparseSet,
     ArchetypeInfo, EcsError,
 };
 
@@ -85,7 +88,7 @@ impl TableStorage {
     pub fn query<const L: usize, I, C>(&self, table_id_iter: I) -> TableStorageIterator<'_, L, I, C>
     where
         I: Iterator<Item = TableId>,
-        C: TupleIds<L>,
+        C: ComponentTuple<L>,
     {
         TableStorageIterator {
             storage: self,
@@ -103,7 +106,7 @@ impl TableStorage {
 pub struct TableStorageIterator<'a, const L: usize, I, C>
 where
     I: Iterator<Item = TableId>,
-    C: TupleIds<L>,
+    C: ComponentTuple<L>,
 {
     storage: &'a TableStorage,
     table_id_iter: I,
@@ -114,17 +117,14 @@ where
 impl<'a, const L: usize, I, C> Iterator for TableStorageIterator<'a, L, I, C>
 where
     I: Iterator<Item = TableId>,
-    C: TupleIds<L>,
+    C: ComponentTuple<L>,
 {
     type Item = <TableIterator<'a, L> as Iterator>::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.component_iter {
             Some(ref mut component_iter) => match component_iter.next() {
-                Some(component) => {
-                    // println!("returninig: {component:?}");
-                    Some(component)
-                }
+                Some(component) => Some(component),
                 None => {
                     self.component_iter = None;
                     self.next()
@@ -132,7 +132,6 @@ where
             },
             None => match self.table_id_iter.next() {
                 Some(table_id) => {
-                    // println!("no component_iter, new table_id: {table_id:?}");
                     let table = self.storage.get_table(table_id).unwrap();
                     self.component_iter = Some(table.component_iter::<L, C>());
                     self.next()
@@ -265,7 +264,7 @@ impl Table {
 
     pub fn component_iter<const L: usize, C>(&self) -> TableIterator<'_, L>
     where
-        C: TupleIds<L>,
+        C: ComponentTuple<L>,
     {
         let columns = C::ids().map(|id| &self.columns[&id]);
         TableIterator {
@@ -297,7 +296,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn intersection() {
+    fn table_intersection() {
         let mut arc1 = ArchetypeInfo::default();
         arc1.add_component::<u8>().unwrap();
         arc1.add_component::<u16>().unwrap();
@@ -319,7 +318,7 @@ mod test {
     }
 
     #[test]
-    fn transfer_line() {
+    fn table_transfer_line() {
         let mut arc1 = ArchetypeInfo::default();
         arc1.add_component::<u8>().unwrap();
         arc1.add_component::<u16>().unwrap();
