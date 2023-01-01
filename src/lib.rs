@@ -15,7 +15,7 @@ mod utils;
 
 use std::collections::HashMap;
 
-use archetype::{Archetype, ArchetypeId, ArchetypeInfo, Archetypes};
+use archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
 use component::{Component, ComponentTuple};
 use entity::{Entity, EntityGenerator};
 use table::{TableId, TableStorage};
@@ -194,10 +194,7 @@ impl Ecs {
         Ok(())
     }
 
-    pub fn query<'a, 'b, 'c, const L: usize, C>(
-        &'a self,
-        archetype: &'b Archetype<'c>,
-    ) -> impl Iterator<Item = [&'a (); L]> + '_
+    pub fn query<'a, 'b, 'c, const L: usize, C>(&'a self) -> impl Iterator<Item = C> + '_
     where
         'c: 'a,
         'b: 'c,
@@ -205,10 +202,12 @@ impl Ecs {
     {
         let table_id_iter = self
             .archetypes
-            .query_ids(archetype)
+            .query_ids(C::ids_ref())
             .map(|arch_id| self.archetype_to_table[&arch_id]);
 
-        self.storage.query::<L, _, C>(table_id_iter)
+        self.storage
+            .query::<L, _, C>(table_id_iter)
+            .map(|array| unsafe { C::from_erased_ref_array(array) })
     }
 }
 
@@ -284,12 +283,10 @@ mod tests {
         ecs.add_component(entity3, 8u16).unwrap();
         ecs.add_component(entity3, 9u64).unwrap();
 
-        let query_ids = <(&u8,)>::ids_ref();
-        let archetype: Archetype = query_ids.into();
-        let query = ecs.query::<1, (&u8,)>(&archetype);
+        let query = ecs.query::<1, (&u8,)>();
         let mut result = query
             .map(|q| {
-                let c1: &u8 = unsafe { std::mem::transmute(q[0]) };
+                let c1: &u8 = unsafe { std::mem::transmute(q.0) };
                 c1
             })
             .collect::<Vec<_>>();
@@ -297,13 +294,11 @@ mod tests {
         let expected = [&1, &4, &7];
         assert_eq!(result, expected);
 
-        let query_ids = <(&u8, &u16)>::ids_ref();
-        let archetype: Archetype = query_ids.into();
-        let query = ecs.query::<2, (&u8, &u16)>(&archetype);
+        let query = ecs.query::<2, (&u8, &u16)>();
         let mut result = query
             .map(|q| {
-                let c1: &u8 = unsafe { std::mem::transmute(q[0]) };
-                let c2: &u16 = unsafe { std::mem::transmute(q[1]) };
+                let c1: &u8 = unsafe { std::mem::transmute(q.0) };
+                let c2: &u16 = unsafe { std::mem::transmute(q.1) };
                 (c1, c2)
             })
             .collect::<Vec<_>>();
@@ -311,14 +306,12 @@ mod tests {
         let expected = [(&1, &2), (&4, &5), (&7, &8)];
         assert_eq!(result, expected);
 
-        let query_ids = <(&u8, &u16, &u32)>::ids_ref();
-        let archetype: Archetype = query_ids.into();
-        let query = ecs.query::<3, (&u8, &u16, &u32)>(&archetype);
+        let query = ecs.query::<3, (&u8, &u16, &u32)>();
         let mut result = query
             .map(|q| {
-                let c1: &u8 = unsafe { std::mem::transmute(q[0]) };
-                let c2: &u16 = unsafe { std::mem::transmute(q[1]) };
-                let c3: &u32 = unsafe { std::mem::transmute(q[2]) };
+                let c1: &u8 = unsafe { std::mem::transmute(q.0) };
+                let c2: &u16 = unsafe { std::mem::transmute(q.1) };
+                let c3: &u32 = unsafe { std::mem::transmute(q.2) };
                 (c1, c2, c3)
             })
             .collect::<Vec<_>>();
