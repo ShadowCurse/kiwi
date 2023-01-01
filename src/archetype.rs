@@ -113,12 +113,12 @@ impl Archetypes {
 
     pub fn query_ids<'a, 'b>(
         &'a self,
-        archetype: &'a Archetype<'b>,
+        ids: &'static [TypeId],
     ) -> impl Iterator<Item = ArchetypeId> + 'a
     where
         'b: 'a,
     {
-        self.archetypes_trie.query(archetype)
+        self.archetypes_trie.query_ids(ids)
     }
 }
 
@@ -163,14 +163,11 @@ impl ArchetypesTrie {
         }
     }
 
-    pub fn query<'a, 'b>(
+    pub fn query_ids<'a>(
         &'a self,
-        sub_suquence: &'a Archetype<'b>,
-    ) -> impl Iterator<Item = ArchetypeId> + 'a
-    where
-        'b: 'a,
-    {
-        ArchetypesTrieQueryIterator::new(&self.root_nodes, sub_suquence.components.as_ref())
+        ids: &'static [TypeId],
+    ) -> impl Iterator<Item = ArchetypeId> + 'a {
+        ArchetypesTrieQueryIterator::new(&self.root_nodes, ids)
     }
 
     fn recursive_insert(
@@ -276,12 +273,12 @@ struct ArchetypesTrieQueryIteratorEntry<'a> {
 #[derive(Debug)]
 struct ArchetypesTrieQueryIterator<'a, 'b> {
     entries: VecDeque<ArchetypesTrieQueryIteratorEntry<'a>>,
-    components: &'b [TypeId],
+    components_ids: &'b [TypeId],
     found_nodes: VecDeque<&'a ArchetypeNode>,
 }
 
 impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
-    pub fn new(initial_nodes: &'a [ArchetypeNode], components: &'b [TypeId]) -> Self {
+    pub fn new(initial_nodes: &'a [ArchetypeNode], components_ids: &'static [TypeId]) -> Self {
         let entries = initial_nodes
             .iter()
             .map(|node| ArchetypesTrieQueryIteratorEntry {
@@ -291,7 +288,7 @@ impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
             .collect();
         Self {
             entries,
-            components,
+            components_ids,
             found_nodes: VecDeque::new(),
         }
     }
@@ -305,7 +302,7 @@ impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
             match entry
                 .node
                 .component_id
-                .cmp(&self.components[entry.component_index])
+                .cmp(&self.components_ids[entry.component_index])
             {
                 Ordering::Greater => continue,
                 Ordering::Less => {
@@ -317,7 +314,7 @@ impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
                     }
                 }
                 Ordering::Equal => {
-                    if entry.component_index == self.components.len() - 1 {
+                    if entry.component_index == self.components_ids.len() - 1 {
                         for node in entry.node.following_nodes.iter() {
                             self.found_nodes.push_back(node);
                         }
@@ -351,6 +348,8 @@ impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
 
 #[cfg(test)]
 mod test {
+    use crate::component::ComponentTuple;
+
     use super::*;
 
     struct A {}
@@ -487,18 +486,13 @@ mod test {
         let _ = arc.add_component::<D>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
-        let mut arc = ArchetypeInfo::default();
-        let _ = arc.add_component::<B>();
-        let _ = arc.add_component::<C>();
-        let ids = trie.query(&arc.archetype()).collect::<HashSet<_>>();
+        let ids = trie.query_ids(<(&B, &C)>::ids_ref()).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())
         );
 
-        let mut arc = ArchetypeInfo::default();
-        let _ = arc.add_component::<A>();
-        let ids = trie.query(&arc.archetype()).collect::<HashSet<_>>();
+        let ids = trie.query_ids(<(&A,)>::ids_ref()).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(2), ArchetypeId(3)].into_iter())
