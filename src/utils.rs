@@ -72,7 +72,7 @@ macro_rules! tuple_from_array {
 
     ($total:ident, $array:ident, $head:tt, $($tail:tt,)*) => {
             (
-                std::mem::transmute($array[$total - $crate::count_tts!($($tail)*)]),
+                std::mem::transmute($array[$total - 1 - $crate::count_tts!($($tail)*)]),
                 $crate::tuple_from_array!($total, $array, $($tail,)*),
             )
     };
