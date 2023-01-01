@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use crate::{
-    archetype::Archetype,
     component::ComponentTuple,
     system::{SystemParameter, SystemParameterFetch},
     Ecs,
@@ -15,16 +14,14 @@ where
     phantom: PhantomData<T>,
 }
 
-// impl<'ecs, T, const L: usize> Query<'ecs, T, L>
-// where
-//     T: ComponentTuple<L>,
-// {
-//     fn iter(&self) -> impl Iterator<Item = T> {
-//         let archetype: Archetype = T::ids_ref().into();
-//         let inner_iter = self.ecs.query::<L, T>(&archetype);
-//         QueryIter { inner_iter, phantom: PhantomData }
-//     }
-// }
+impl<'ecs, T, const L: usize> Query<'ecs, T, L>
+where
+    T: ComponentTuple<L> + 'ecs,
+{
+    fn iter(&self) -> impl Iterator<Item = T> + 'ecs {
+        self.ecs.query::<L, T>()
+    }
+}
 
 impl<'a, T, const L: usize> SystemParameter for Query<'a, T, L>
 where
@@ -54,42 +51,6 @@ where
     }
 }
 
-struct QueryIter<'ecs, I, T, const L: usize>
-where
-    I: Iterator<Item = [&'ecs (); L]>,
-    T: ComponentTuple<L>,
-{
-    inner_iter: I,
-    phantom: PhantomData<T>,
-}
-
-impl<'ecs, I, T, const L: usize> QueryIter<'ecs, I, T, L>
-where
-    I: Iterator<Item = [&'ecs (); L]>,
-    T: ComponentTuple<L>,
-{
-    pub fn new(inner_iter: I) -> Self {
-        Self {
-            inner_iter,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<'ecs, I, T, const L: usize> Iterator for QueryIter<'ecs, I, T, L>
-where
-    I: Iterator<Item = [&'ecs (); L]>,
-    T: ComponentTuple<L>,
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner_iter
-            .next()
-            .map(|array| unsafe { T::from_erased_ref_array(array) })
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::any::TypeId;
@@ -112,7 +73,7 @@ mod test {
     }
 
     #[test]
-    fn query_in_system() {
+    fn query_system_param() {
         fn test_sys_query(_: Query<(&u8, &bool), 2>) {
             println!("test_sys(_: Query::<(&u8, &bool)>)");
         }
@@ -122,6 +83,55 @@ mod test {
         let mut systems = Systems::default();
 
         systems.add_system(test_sys_query);
+
+        systems.run(&ecs);
+    }
+
+    #[test]
+    fn query_in_ecs() {
+        let mut ecs = Ecs::default();
+
+        let entity = ecs.create();
+        ecs.add_component(entity, 1u8).unwrap();
+        ecs.add_component(entity, 2u16).unwrap();
+        ecs.add_component(entity, 3u32).unwrap();
+
+        let entity2 = ecs.create();
+        ecs.add_component(entity2, 4u8).unwrap();
+        ecs.add_component(entity2, 5u16).unwrap();
+        ecs.add_component(entity2, 6u32).unwrap();
+
+        let entity3 = ecs.create();
+        ecs.add_component(entity3, 7u8).unwrap();
+        ecs.add_component(entity3, 8u16).unwrap();
+        ecs.add_component(entity3, 9u64).unwrap();
+
+        fn query_u8(query: Query<(&u8,), 1>) {
+            let mut results = query.iter().collect::<Vec<_>>();
+            results.sort_unstable();
+            let expected = [(&1,), (&4,), (&7,)];
+            assert_eq!(results, expected);
+        }
+
+        fn query_u8_u16(query: Query<(&u8, &u16), 2>) {
+            let mut results = query.iter().collect::<Vec<_>>();
+            results.sort_unstable();
+            let expected = [(&1, &2), (&4, &5), (&7, &8)];
+            assert_eq!(results, expected);
+        }
+
+        fn query_u8_u16_u32(query: Query<(&u8, &u16, &u32), 3>) {
+            let mut results = query.iter().collect::<Vec<_>>();
+            results.sort_unstable();
+            let expected = [(&1, &2, &3), (&4, &5, &6)];
+            assert_eq!(results, expected);
+        }
+
+        let mut systems = Systems::default();
+
+        systems.add_system(query_u8);
+        systems.add_system(query_u8_u16);
+        systems.add_system(query_u8_u16_u32);
 
         systems.run(&ecs);
     }
