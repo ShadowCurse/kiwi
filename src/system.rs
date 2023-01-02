@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::Ecs;
+use crate::world::World;
 
 pub trait System: 'static {
-    fn run(&mut self, ecs: &Ecs);
+    fn run(&mut self, world: &World);
 }
 
 pub trait SystemParameter: Sized {
@@ -13,7 +13,7 @@ pub trait SystemParameter: Sized {
 pub trait SystemParameterFetch {
     type Item<'a>: SystemParameter<Fetch = Self>;
 
-    fn fetch(ecs: &Ecs) -> Self::Item<'_>;
+    fn fetch(world: &World) -> Self::Item<'_>;
 }
 
 pub type SystemParameterItem<'w, P> = <<P as SystemParameter>::Fetch as SystemParameterFetch>::Item<'w>;
@@ -43,9 +43,9 @@ impl Systems {
         self.systems.push(Box::new(system.into_system()));
     }
 
-    pub fn run(&mut self, ecs: &Ecs) {
+    pub fn run(&mut self, world: &World) {
         for system in self.systems.iter_mut() {
-            system.run(ecs);
+            system.run(world);
         }
     }
 }
@@ -75,7 +75,7 @@ where
     S: SystemParameterFunction<P> + 'static,
     P: SystemParameter + 'static,
 {
-    fn run(&mut self, ecs: &Ecs) {
+    fn run(&mut self, ecs: &World) {
         let params = P::Fetch::fetch(ecs);
         self.system.run(params);
     }
@@ -123,7 +123,7 @@ macro_rules! impl_system_param_tuple {
                 $($t::Item<'a>),*,
             );
 
-            fn fetch<'ecs>(ecs: &'ecs Ecs) -> Self::Item<'ecs> {
+            fn fetch<'ecs>(ecs: &'ecs World) -> Self::Item<'ecs> {
                 (
                     $($t::fetch(ecs)),*
                     ,
@@ -147,7 +147,7 @@ pub struct TupleFetch;
 impl SystemParameterFetch for TupleFetch {
     type Item<'a> = ();
 
-    fn fetch(_ecs: &'_ Ecs) -> Self::Item<'_> {}
+    fn fetch(_ecs: &'_ World) -> Self::Item<'_> {}
 }
 
 impl_system_param_tuple!(P1);
@@ -165,7 +165,7 @@ mod test {
             pub struct $fetch;
             impl SystemParameterFetch for $fetch {
                 type Item<'a> = $t;
-                fn fetch(_: &'_ Ecs) -> Self::Item<'_> {
+                fn fetch(_: &'_ World) -> Self::Item<'_> {
                     Default::default()
                 }
             }
@@ -196,7 +196,7 @@ mod test {
             println!("test_sys_tuples(_: ((), u32), _: (bool, bool))");
         }
 
-        let ecs = Ecs::default();
+        let ecs = World::default();
 
         let mut systems = Systems::default();
 
