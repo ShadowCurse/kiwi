@@ -2,15 +2,14 @@ use std::marker::PhantomData;
 
 use crate::{
     component::ComponentTuple,
-    system::{SystemParameter, SystemParameterFetch},
-    Ecs,
+    system::{SystemParameter, SystemParameterFetch}, world::World,
 };
 
-pub struct Query<'ecs, T, const L: usize>
+pub struct Query<'world, T, const L: usize>
 where
     T: ComponentTuple<L>,
 {
-    ecs: &'ecs Ecs,
+    world: &'world World,
     phantom: PhantomData<T>,
 }
 
@@ -19,7 +18,7 @@ where
     T: ComponentTuple<L> + 'ecs,
 {
     fn iter(&self) -> impl Iterator<Item = T> + 'ecs {
-        self.ecs.query::<L, T>()
+        self.world.query::<T, L>()
     }
 }
 
@@ -43,9 +42,9 @@ where
 {
     type Item<'a> = Query<'a, T, L>;
 
-    fn fetch(ecs: &Ecs) -> Self::Item<'_> {
+    fn fetch(world: &World) -> Self::Item<'_> {
         Self::Item {
-            ecs,
+            world,
             phantom: PhantomData,
         }
     }
@@ -53,24 +52,9 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::any::TypeId;
-
     use crate::system::Systems;
 
     use super::*;
-
-    #[test]
-    fn query() {
-        let mut expected = [
-            TypeId::of::<u8>(),
-            TypeId::of::<bool>(),
-            TypeId::of::<i32>(),
-        ];
-        expected.sort_unstable();
-        assert_eq!(<(&u8, &bool, &i32)>::ids(), expected);
-        assert_eq!(<(&bool, &u8, &i32)>::ids(), expected);
-        assert_eq!(<(&i32, &bool, &u8)>::ids(), expected);
-    }
 
     #[test]
     fn query_system_param() {
@@ -78,7 +62,7 @@ mod test {
             println!("test_sys(_: Query::<(&u8, &bool)>)");
         }
 
-        let ecs = Ecs::default();
+        let ecs = World::default();
 
         let mut systems = Systems::default();
 
@@ -89,7 +73,7 @@ mod test {
 
     #[test]
     fn query_in_ecs() {
-        let mut ecs = Ecs::default();
+        let mut ecs = World::default();
 
         let entity = ecs.create();
         ecs.add_component(entity, 1u8).unwrap();

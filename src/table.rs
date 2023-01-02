@@ -8,9 +8,26 @@ use crate::{
     blobvec::BlobVec,
     component::{Component, ComponentTuple},
     entity::Entity,
-    sparse_set::SparseSet,
-    ArchetypeInfo, EcsError,
+    sparse_set::SparseSet, archetype::ArchetypeInfo,
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum TableError {
+    #[error("Table does not exist in the TableStorage")]
+    TableDoesNotExist,
+    #[error("Table does not contain component column")]
+    TableDoesNotContainComponentColumn,
+    #[error("Table already has column for this type")]
+    TableRegisteringDuplicatedComponent,
+    #[error("Table already has the archetype assigned to it")]
+    TableAlreadyAssignedArchetype,
+    #[error("Trying to access non existing entity")]
+    NonExistingEntity,
+    #[error("Trying to access non existing archetype")]
+    NonExistingArchetype,
+    #[error("Trying to access non existing table")]
+    NonExistingTable,
+}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct TableId(usize);
@@ -27,13 +44,13 @@ impl TableStorage {
         TableId(table_id)
     }
 
-    pub fn add_entity(&mut self, table_id: TableId, entity: Entity) -> Result<(), EcsError> {
+    pub fn add_entity(&mut self, table_id: TableId, entity: Entity) -> Result<(), TableError> {
         match self.tables.get_mut(table_id.0) {
             Some(table) => {
                 table.add_entity(entity);
                 Ok(())
             }
-            None => Err(EcsError::TableDoesNotExist),
+            None => Err(TableError::TableDoesNotExist),
         }
     }
 
@@ -42,10 +59,10 @@ impl TableStorage {
         table_id: TableId,
         entity: &Entity,
         component: T,
-    ) -> Result<(), EcsError> {
+    ) -> Result<(), TableError> {
         match self.tables.get_mut(table_id.0) {
             Some(table) => table.insert_component(entity, component),
-            None => Err(EcsError::TableDoesNotExist),
+            None => Err(TableError::TableDoesNotExist),
         }
     }
 
@@ -57,10 +74,10 @@ impl TableStorage {
         to: TableId,
         entity: Entity,
         new_component: T,
-    ) -> Result<(), EcsError> {
+    ) -> Result<(), TableError> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
             Some((from, to)) => (from, to),
-            None => Err(EcsError::NonExistingTable)?,
+            None => Err(TableError::NonExistingTable)?,
         };
         to.add_entity(entity);
         to.copy_line_from(from, &entity)?;
@@ -74,10 +91,10 @@ impl TableStorage {
         from: TableId,
         to: TableId,
         entity: Entity,
-    ) -> Result<(), EcsError> {
+    ) -> Result<(), TableError> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
             Some((from, to)) => (from, to),
-            None => Err(EcsError::NonExistingTable)?,
+            None => Err(TableError::NonExistingTable)?,
         };
         to.add_entity(entity);
         to.copy_line_from(from, &entity)?;
@@ -85,10 +102,10 @@ impl TableStorage {
         Ok(())
     }
 
-    pub fn query<const L: usize, I, C>(&self, table_id_iter: I) -> TableStorageIterator<'_, L, I, C>
+    pub fn query<I, CT, const L: usize, >(&self, table_id_iter: I) -> TableStorageIterator<'_, I, CT, L>
     where
         I: Iterator<Item = TableId>,
-        C: ComponentTuple<L>,
+        CT: ComponentTuple<L>,
     {
         TableStorageIterator {
             storage: self,
@@ -103,21 +120,21 @@ impl TableStorage {
     }
 }
 
-pub struct TableStorageIterator<'a, const L: usize, I, C>
+pub struct TableStorageIterator<'a, I, CT, const L: usize>
 where
     I: Iterator<Item = TableId>,
-    C: ComponentTuple<L>,
+    CT: ComponentTuple<L>,
 {
     storage: &'a TableStorage,
     table_id_iter: I,
     component_iter: Option<TableIterator<'a, L>>,
-    phantom: PhantomData<C>,
+    phantom: PhantomData<CT>,
 }
 
-impl<'a, const L: usize, I, C> Iterator for TableStorageIterator<'a, L, I, C>
+impl<'a, I, CT, const L: usize> Iterator for TableStorageIterator<'a, I, CT, L>
 where
     I: Iterator<Item = TableId>,
-    C: ComponentTuple<L>,
+    CT: ComponentTuple<L>,
 {
     type Item = <TableIterator<'a, L> as Iterator>::Item;
 
@@ -133,7 +150,7 @@ where
             None => match self.table_id_iter.next() {
                 Some(table_id) => {
                     let table = self.storage.get_table(table_id).unwrap();
-                    self.component_iter = Some(table.component_iter::<L, C>());
+                    self.component_iter = Some(table.component_iter::<CT, L>());
                     self.next()
                 }
                 None => None,
@@ -191,23 +208,23 @@ impl Table {
         unsafe { self.columns[type_id].get_as_byte_slice(self.entities[entity]) }
     }
 
-    pub fn get_component<T: Component>(&self, entity: &Entity) -> Option<&T> {
+    pub fn get_component<C: Component>(&self, entity: &Entity) -> Option<&C> {
         let line = self.entities[entity];
-        let type_id = TypeId::of::<T>();
+        let type_id = TypeId::of::<C>();
         self.columns
             .get(&type_id)
             .map(|column| unsafe { column.get(line) })
     }
 
-    pub fn get_component_mut<T: Component>(&mut self, entity: &Entity) -> Option<&mut T> {
+    pub fn get_component_mut<C: Component>(&mut self, entity: &Entity) -> Option<&mut C> {
         let line = self.entities[entity];
-        let type_id = TypeId::of::<T>();
+        let type_id = TypeId::of::<C>();
         self.columns
             .get_mut(&type_id)
             .map(|column| unsafe { column.get_mut(line) })
     }
 
-    pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), EcsError> {
+    pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), TableError> {
         let line = self.entities[entity];
         for type_id in self.intersection(table).iter() {
             self.copy_component_from_slice(
@@ -230,7 +247,7 @@ impl Table {
         type_id: &TypeId,
         line: usize,
         component: &[u8],
-    ) -> Result<(), EcsError> {
+    ) -> Result<(), TableError> {
         match self.columns.get_mut(type_id) {
             Some(column) => {
                 // #Safety
@@ -238,17 +255,17 @@ impl Table {
                 unsafe { column.insert_from_slice(line, component) };
                 Ok(())
             }
-            None => Err(EcsError::TableDoesNotContainComponentColumn),
+            None => Err(TableError::TableDoesNotContainComponentColumn),
         }
     }
 
-    pub fn insert_component<T: Component>(
+    pub fn insert_component<C: Component>(
         &mut self,
         entity: &Entity,
-        component: T,
-    ) -> Result<(), EcsError> {
+        component: C,
+    ) -> Result<(), TableError> {
         let line = self.entities[entity];
-        let type_id = TypeId::of::<T>();
+        let type_id = TypeId::of::<C>();
         match self.columns.get_mut(&type_id) {
             Some(column) => {
                 // If column exist for the type
@@ -258,15 +275,15 @@ impl Table {
                 }
                 Ok(())
             }
-            None => Err(EcsError::TableDoesNotContainComponentColumn),
+            None => Err(TableError::TableDoesNotContainComponentColumn),
         }
     }
 
-    pub fn component_iter<const L: usize, C>(&self) -> TableIterator<'_, L>
+    pub fn component_iter<CT, const L: usize>(&self) -> TableIterator<'_, L>
     where
-        C: ComponentTuple<L>,
+        CT: ComponentTuple<L>,
     {
-        let columns = C::ids().map(|id| &self.columns[&id]);
+        let columns = CT::ids().map(|id| &self.columns[&id]);
         TableIterator {
             columns,
             entities: self.entities.values(),

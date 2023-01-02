@@ -5,7 +5,20 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::component::{Component, ComponentInfo};
 use crate::sparse_set::SparseSet;
-use crate::EcsError;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ArchetypeError {
+    #[error("Adding component dublicate to the archetype")]
+    AddingComponentDuplicate,
+    #[error("Removing non existing component form the archetype")]
+    RemovingNonExistingComponent,
+    #[error("Inserting archetype dublicate in component trie")]
+    InsertingArchetypeDuplicate,
+    #[error("Removing non existing archetype from component trie")]
+    RemovingNonExistingArchetype,
+    #[error("Trying to access non existing archetype")]
+    NonExistingArchetype,
+}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct ArchetypeId(usize);
@@ -53,11 +66,11 @@ impl ArchetypeInfo {
         self.components.is_empty()
     }
 
-    pub fn add_component<T: Component>(&mut self) -> Result<(), EcsError> {
+    pub fn add_component<T: Component>(&mut self) -> Result<(), ArchetypeError> {
         let component_info = ComponentInfo::new::<T>();
         match self.components.insert(component_info) {
             true => Ok(()),
-            false => Err(EcsError::AddingComponentDuplicate),
+            false => Err(ArchetypeError::AddingComponentDuplicate),
         }
     }
 
@@ -66,11 +79,11 @@ impl ArchetypeInfo {
         self.components.contains(&component_info)
     }
 
-    pub fn remove_component<T: Component>(&mut self) -> Result<(), EcsError> {
+    pub fn remove_component<T: Component>(&mut self) -> Result<(), ArchetypeError> {
         let component_info = ComponentInfo::new::<T>();
         match self.components.remove(&component_info) {
             true => Ok(()),
-            false => Err(EcsError::RemovingNonExistingComponent),
+            false => Err(ArchetypeError::RemovingNonExistingComponent),
         }
     }
 
@@ -96,15 +109,17 @@ pub struct Archetypes {
 }
 
 impl Archetypes {
-    pub fn insert(&mut self, archetype_info: ArchetypeInfo) -> Result<ArchetypeId, EcsError> {
+    pub fn insert(&mut self, archetype_info: ArchetypeInfo) -> Result<ArchetypeId, ArchetypeError> {
         let arch = archetype_info.archetype();
         let archetype_id = ArchetypeId(self.archetypes_info.insert(archetype_info));
         self.archetypes_trie.insert(arch, archetype_id)?;
         Ok(archetype_id)
     }
 
-    pub fn get_info(&self, archetype_id: ArchetypeId) -> Option<&ArchetypeInfo> {
-        self.archetypes_info.get(archetype_id.0)
+    pub fn get_info(&self, archetype_id: ArchetypeId) -> Result<&ArchetypeInfo, ArchetypeError> {
+        self.archetypes_info
+            .get(archetype_id.0)
+            .ok_or(ArchetypeError::NonExistingArchetype)
     }
 
     pub fn get_id(&self, archetype: &ArchetypeInfo) -> Option<ArchetypeId> {
@@ -133,7 +148,7 @@ impl ArchetypesTrie {
         &mut self,
         archetype: Archetype,
         archetype_id: ArchetypeId,
-    ) -> Result<(), EcsError> {
+    ) -> Result<(), ArchetypeError> {
         if archetype.is_empty() {
             self.empty_id = Some(archetype_id);
             Ok(())
@@ -147,7 +162,7 @@ impl ArchetypesTrie {
         }
     }
 
-    pub fn remove(&mut self, archetype: Archetype) -> Result<(), EcsError> {
+    pub fn remove(&mut self, archetype: Archetype) -> Result<(), ArchetypeError> {
         if archetype.is_empty() {
             Ok(())
         } else {
@@ -175,7 +190,7 @@ impl ArchetypesTrie {
         components: &[TypeId],
         index: usize,
         archetype_id: ArchetypeId,
-    ) -> Result<(), EcsError> {
+    ) -> Result<(), ArchetypeError> {
         match (
             index == components.len() - 1,
             nodes.binary_search_by_key(&components[index], |node| node.component_id),
@@ -186,7 +201,7 @@ impl ArchetypesTrie {
                 index + 1,
                 archetype_id,
             ),
-            (true, Ok(_)) => Err(EcsError::InsertingArchetypeDuplicate),
+            (true, Ok(_)) => Err(ArchetypeError::InsertingArchetypeDuplicate),
             (last, Err(i)) => {
                 let node = ArchetypeNode::new(components[index]);
                 nodes.insert(i, node);
@@ -209,7 +224,7 @@ impl ArchetypesTrie {
         nodes: &mut Vec<ArchetypeNode>,
         components: &[TypeId],
         index: usize,
-    ) -> Result<(), EcsError> {
+    ) -> Result<(), ArchetypeError> {
         match (
             index == components.len() - 1,
             nodes.binary_search_by_key(&components[index], |node| node.component_id),
@@ -225,7 +240,7 @@ impl ArchetypesTrie {
                 }
                 Ok(())
             }
-            (_, Err(_)) => Err(EcsError::RemovingNonExistingArchetype),
+            (_, Err(_)) => Err(ArchetypeError::RemovingNonExistingArchetype),
         }
     }
 
@@ -486,7 +501,9 @@ mod test {
         let _ = arc.add_component::<D>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
-        let ids = trie.query_ids(<(&B, &C)>::ids_ref()).collect::<HashSet<_>>();
+        let ids = trie
+            .query_ids(<(&B, &C)>::ids_ref())
+            .collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())

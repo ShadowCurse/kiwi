@@ -143,3 +143,23 @@ impl_component_tuple!(C1, C2);
 impl_component_tuple!(C1, C2, C3);
 impl_component_tuple!(C1, C2, C3, C4);
 impl_component_tuple!(C1, C2, C3, C4, C5);
+
+#[cfg(test)]
+mod test {
+    use std::any::TypeId;
+
+    use super::*;
+
+    #[test]
+    fn components_component_tuple_ids() {
+        let mut expected = [
+            TypeId::of::<u8>(),
+            TypeId::of::<bool>(),
+            TypeId::of::<i32>(),
+        ];
+        expected.sort_unstable();
+        assert_eq!(<(&u8, &bool, &i32)>::ids(), expected);
+        assert_eq!(<(&bool, &u8, &i32)>::ids(), expected);
+        assert_eq!(<(&i32, &bool, &u8)>::ids(), expected);
+    }
+}

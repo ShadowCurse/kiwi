@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 const MAX_ENTITIES: u16 = std::u16::MAX;
 
 type EntityGeneration = u16;
@@ -7,6 +9,12 @@ type EntityId = u16;
 pub struct Entity {
     id: u16,
     gen: u16,
+}
+
+impl Display for Entity {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{self:?}"))
+    }
 }
 
 impl Entity {
