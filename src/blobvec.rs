@@ -118,6 +118,22 @@ impl BlobVec {
     /// # Safety
     /// The index should be in range 0 to blobvec.len()
     #[inline]
+    pub unsafe fn get_erased_ptr(&self, index: usize) -> *const () {
+        let data_index = index * self.layout.size();
+        &self.data[data_index] as *const u8 as *const ()
+    }
+
+    /// # Safety
+    /// The index should be in range 0 to blobvec.len()
+    #[inline]
+    pub unsafe fn get_erased_ptr_mut(&self, index: usize) -> *mut () {
+        let data_index = index * self.layout.size();
+        &self.data[data_index] as *const u8 as *mut ()
+    }
+
+    /// # Safety
+    /// The index should be in range 0 to blobvec.len()
+    #[inline]
     pub unsafe fn get_as_byte_slice(&self, index: usize) -> &[u8] {
         let data_index = index * self.layout.size();
         unsafe { std::slice::from_raw_parts(&self.data[data_index], self.layout.size()) }
@@ -219,7 +235,7 @@ mod test {
     }
 
     #[test]
-    fn blob_get_and_add_from_slice() {
+    fn blob_get_and_push_from_slice() {
         #[derive(PartialEq, Eq)]
         struct Foo {
             a: u32,
@@ -245,7 +261,7 @@ mod test {
     }
 
     #[test]
-    fn blob_get() {
+    fn blob_get_erased_ref() {
         let layout = Layout::new::<u32>();
         let mut blob = BlobVec::new(layout);
 
@@ -265,6 +281,30 @@ mod test {
         assert_eq!(ptr, blob.data.as_ptr());
         let ptr = unsafe { blob.get_erased_ref(1) };
         let ptr: *const u8 = ptr as *const () as *const u8;
+        assert_eq!(ptr, &blob.data[4] as *const u8);
+    }
+
+    #[test]
+    fn blob_get_erased_ptr() {
+        let layout = Layout::new::<u32>();
+        let mut blob = BlobVec::new(layout);
+
+        let val: u32 = 0;
+        unsafe { blob.push(val) };
+
+        let ptr = unsafe { blob.get_erased_ptr(0) };
+        let ptr: *const u8 = ptr as *const u8;
+
+        assert_eq!(ptr, blob.data.as_ptr());
+
+        let val: u32 = 32;
+        unsafe { blob.push(val) };
+
+        let ptr = unsafe { blob.get_erased_ptr(0) };
+        let ptr: *const u8 = ptr as *const u8;
+        assert_eq!(ptr, blob.data.as_ptr());
+        let ptr = unsafe { blob.get_erased_ptr(1) };
+        let ptr: *const u8 = ptr as *const u8;
         assert_eq!(ptr, &blob.data[4] as *const u8);
     }
 
