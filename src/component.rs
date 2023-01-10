@@ -107,6 +107,20 @@ pub trait ComponentTuple<const L: usize> {
     unsafe fn from_erased_ref_array(array: [&(); L]) -> Self;
 }
 
+pub trait ComponentTupleMut<const L: usize> {
+    const IDS: [TypeId; L];
+
+    fn ids() -> [TypeId; L] {
+        Self::IDS
+    }
+
+    fn ids_ref() -> &'static [TypeId] {
+        &Self::IDS
+    }
+
+    unsafe fn from_erased_ref_array_mut(array: [*mut (); L]) -> Self;
+}
+
 macro_rules! impl_component_tuple {
     ($($t:ident),*) => {
         impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for ($(&$t,)*)
@@ -135,6 +149,31 @@ macro_rules! impl_component_tuple {
             }
         }
 
+        impl<$($t),*> ComponentTupleMut<{count_tts!($($t)*)}> for ($(&mut $t,)*)
+        where
+            $($t: Component),*,
+        {
+            // TODO
+            // Currently we transform TypeId to u64, but this is wrond
+            // Wait untill TypId can be compared in compile time and change this mess
+            const IDS: [TypeId; count_tts!($($t)*)] = {
+                let ids_u64: [u64; count_tts!($($t)*)] = [$(unsafe { std::mem::transmute::<_, u64>(TypeId::of::<$t>()) }),*];
+                let ids_u64 = static_sort(ids_u64, 0, count_tts!($($t)*) as isize - 1);
+                let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<$t>()),*];
+                let mut _index = 0;
+                $(
+                    let _ = TypeId::of::<$t>();
+                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
+                    _index += 1;
+                )*
+               ids_type_id
+            };
+
+            unsafe fn from_erased_ref_array_mut(array: [*mut (); count_tts!($($t)*)]) -> Self {
+                const L:usize = count_tts!($($t)*);
+                tuple_from_array!(L, array, $($t,)*).flatten()
+            }
+        }
     };
 }
 

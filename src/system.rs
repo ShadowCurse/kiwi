@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::world::World;
 
 pub trait System: 'static {
-    fn run(&mut self, world: &World);
+    fn run(&mut self, world: &mut World);
 }
 
 pub trait SystemParameter: Sized {
@@ -13,17 +13,17 @@ pub trait SystemParameter: Sized {
 pub trait SystemParameterFetch {
     type Item<'a>: SystemParameter<Fetch = Self>;
 
-    fn fetch(world: &World) -> Self::Item<'_>;
+    fn fetch(world: &mut World) -> Self::Item<'_>;
 }
 
-pub type SystemParameterItem<'w, P> = <<P as SystemParameter>::Fetch as SystemParameterFetch>::Item<'w>;
+pub type SystemParameterItem<'w, P> =
+    <<P as SystemParameter>::Fetch as SystemParameterFetch>::Item<'w>;
 
 pub trait IntoSystem<Params> {
     type Output: System;
 
     fn into_system(self) -> Self::Output;
 }
-
 
 pub trait SystemParameterFunction<Parameter: SystemParameter>: 'static {
     fn run(&mut self, params: SystemParameterItem<Parameter>);
@@ -43,7 +43,7 @@ impl Systems {
         self.systems.push(Box::new(system.into_system()));
     }
 
-    pub fn run(&mut self, world: &World) {
+    pub fn run(&mut self, world: &mut World) {
         for system in self.systems.iter_mut() {
             system.run(world);
         }
@@ -75,7 +75,7 @@ where
     S: SystemParameterFunction<P> + 'static,
     P: SystemParameter + 'static,
 {
-    fn run(&mut self, ecs: &World) {
+    fn run(&mut self, ecs: &mut World) {
         let params = P::Fetch::fetch(ecs);
         self.system.run(params);
     }
@@ -123,9 +123,9 @@ macro_rules! impl_system_param_tuple {
                 $($t::Item<'a>),*,
             );
 
-            fn fetch<'ecs>(ecs: &'ecs World) -> Self::Item<'ecs> {
+            fn fetch<'ecs>(ecs: &'ecs mut World) -> Self::Item<'ecs> {
                 (
-                    $($t::fetch(ecs)),*
+                    $($t::fetch(unsafe { std::mem::transmute(ecs as *mut World) })),*
                     ,
                 )
             }
@@ -147,7 +147,7 @@ pub struct TupleFetch;
 impl SystemParameterFetch for TupleFetch {
     type Item<'a> = ();
 
-    fn fetch(_ecs: &'_ World) -> Self::Item<'_> {}
+    fn fetch(_ecs: &'_ mut World) -> Self::Item<'_> {}
 }
 
 impl_system_param_tuple!(P1);
@@ -165,7 +165,7 @@ mod test {
             pub struct $fetch;
             impl SystemParameterFetch for $fetch {
                 type Item<'a> = $t;
-                fn fetch(_: &'_ World) -> Self::Item<'_> {
+                fn fetch(_: &'_ mut World) -> Self::Item<'_> {
                     Default::default()
                 }
             }
@@ -196,7 +196,7 @@ mod test {
             println!("test_sys_tuples(_: ((), u32), _: (bool, bool))");
         }
 
-        let ecs = World::default();
+        let mut ecs = World::default();
 
         let mut systems = Systems::default();
 
@@ -205,6 +205,6 @@ mod test {
         systems.add_system(test_sys_void_and_u32);
         systems.add_system(test_sys_tuples);
 
-        systems.run(&ecs);
+        systems.run(&mut ecs);
     }
 }
