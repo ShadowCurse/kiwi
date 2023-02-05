@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::archetype::{ArchetypeError, ArchetypeId, ArchetypeInfo, Archetypes};
-use crate::component::{Component, ComponentTuple, ComponentTupleMut};
+use crate::component::{Component, ComponentTuple};
 use crate::entity::{Entity, EntityGenerator};
 use crate::table::{TableError, TableId, TableStorage};
 
@@ -172,23 +172,7 @@ impl World {
 
         self.storage
             .query::<_, CT, L>(table_id_iter)
-            .map(|array| unsafe { CT::from_erased_ref_array(array) })
-    }
-
-    pub fn query_mut<'a, 'b, 'c, CT, const L: usize>(&'a self) -> impl Iterator<Item = CT> + '_
-    where
-        'c: 'a,
-        'b: 'c,
-        CT: ComponentTupleMut<L> + 'a,
-    {
-        let table_id_iter = self
-            .archetypes
-            .query_ids(CT::ids_ref())
-            .map(|arch_id| self.archetype_to_table[&arch_id]);
-
-        self.storage
-            .query_mut::<_, CT, L>(table_id_iter)
-            .map(|array| unsafe { CT::from_erased_ref_array_mut(array) })
+            .map(|array| unsafe { CT::from_erased_mut_ptr_array(array) })
     }
 }
 

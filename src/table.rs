@@ -7,7 +7,7 @@ use std::{
 use crate::{
     archetype::ArchetypeInfo,
     blobvec::BlobVec,
-    component::{Component, ComponentTuple, ComponentTupleMut},
+    component::{Component, ComponentTuple},
     entity::Entity,
     sparse_set::SparseSet,
 };
@@ -119,22 +119,6 @@ impl TableStorage {
         }
     }
 
-    pub fn query_mut<I, CT, const L: usize>(
-        &self,
-        table_id_iter: I,
-    ) -> TableStorageIteratorMut<'_, I, CT, L>
-    where
-        I: Iterator<Item = TableId>,
-        CT: ComponentTupleMut<L>,
-    {
-        TableStorageIteratorMut {
-            storage: self,
-            table_id_iter,
-            component_iter: None,
-            phantom: PhantomData,
-        }
-    }
-
     fn get_table(&self, table_id: TableId) -> Option<&Table> {
         self.tables.get(table_id.0)
     }
@@ -171,45 +155,6 @@ where
                 Some(table_id) => {
                     let table = self.storage.get_table(table_id).unwrap();
                     self.component_iter = Some(table.component_iter::<CT, L>());
-                    self.next()
-                }
-                None => None,
-            },
-        }
-    }
-}
-
-pub struct TableStorageIteratorMut<'a, I, CT, const L: usize>
-where
-    I: Iterator<Item = TableId>,
-    CT: ComponentTupleMut<L>,
-{
-    storage: &'a TableStorage,
-    table_id_iter: I,
-    component_iter: Option<TableIteratorMut<'a, L>>,
-    phantom: PhantomData<CT>,
-}
-
-impl<'a, I, CT, const L: usize> Iterator for TableStorageIteratorMut<'a, I, CT, L>
-where
-    I: Iterator<Item = TableId>,
-    CT: ComponentTupleMut<L>,
-{
-    type Item = <TableIteratorMut<'a, L> as Iterator>::Item;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.component_iter {
-            Some(ref mut component_iter) => match component_iter.next() {
-                Some(component) => Some(component),
-                None => {
-                    self.component_iter = None;
-                    self.next()
-                }
-            },
-            None => match self.table_id_iter.next() {
-                Some(table_id) => {
-                    let table = self.storage.get_table(table_id).unwrap();
-                    self.component_iter = Some(table.component_iter_mut::<CT, L>());
                     self.next()
                 }
                 None => None,
@@ -348,17 +293,6 @@ impl Table {
             entities: self.entities.values(),
         }
     }
-
-    pub fn component_iter_mut<CT, const L: usize>(&self) -> TableIteratorMut<'_, L>
-    where
-        CT: ComponentTupleMut<L>,
-    {
-        let columns = CT::ids().map(|id| &self.columns[&id]);
-        TableIteratorMut {
-            columns,
-            entities: self.entities.values(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -368,29 +302,15 @@ pub struct TableIterator<'a, const L: usize> {
 }
 
 impl<'a, const L: usize> Iterator for TableIterator<'a, L> {
-    type Item = [&'a (); L];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.entities.next().map(|line| {
-            self.columns
-                .map(|column| unsafe { column.get_erased_ref(*line) })
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct TableIteratorMut<'a, const L: usize> {
-    columns: [&'a BlobVec; L],
-    entities: Values<'a, Entity, usize>,
-}
-
-impl<'a, const L: usize> Iterator for TableIteratorMut<'a, L> {
     type Item = [*mut (); L];
 
     fn next(&mut self) -> Option<Self::Item> {
         self.entities.next().map(|line| {
             self.columns
-                .map(|column| unsafe { column.get_erased_ptr_mut(*line) })
+                .map(|column| 
+                     // # Safety
+                     // Line is valid index
+                     unsafe { column.get_erased_ptr_mut(*line) })
         })
     }
 }

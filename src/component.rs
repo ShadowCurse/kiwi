@@ -2,16 +2,32 @@ use std::{alloc::Layout, any::TypeId};
 
 use crate::{count_tts, tuple_from_array, utils::static_sort};
 
-trait UnderlyingType {
-    type Under;
+trait ComponentRef {
+    type Component: Component;
+
+    fn from_raw_ptr(raw: *mut ()) -> Self;
 }
 
-impl<T> UnderlyingType for &T {
-    type Under = T;
+impl<T> ComponentRef for &T
+where
+    T: Component,
+{
+    type Component = T;
+
+    fn from_raw_ptr(r: *mut ()) -> Self {
+        unsafe { &*(r as *const T) }
+    }
 }
 
-impl<T> UnderlyingType for &mut T {
-    type Under = T;
+impl<T> ComponentRef for &mut T
+where
+    T: Component,
+{
+    type Component = T;
+
+    fn from_raw_ptr(r: *mut ()) -> Self {
+        unsafe { &mut *(r as *mut T) }
+    }
 }
 
 pub trait Component: 'static {}
@@ -33,6 +49,8 @@ impl_component!(i16);
 impl_component!(i32);
 impl_component!(i64);
 impl_component!(i128);
+impl_component!(f32);
+impl_component!(f64);
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct ComponentInfo {
@@ -112,36 +130,28 @@ pub trait ComponentTuple<const L: usize> {
         &Self::IDS
     }
 
-    unsafe fn from_erased_ref_array(array: [&(); L]) -> Self;
-}
-
-pub trait ComponentTupleMut<const L: usize> {
-    const IDS: [TypeId; L];
-
-    fn ids() -> [TypeId; L] {
-        Self::IDS
-    }
-
-    fn ids_ref() -> &'static [TypeId] {
-        &Self::IDS
-    }
-
-    unsafe fn from_erased_ref_array_mut(array: [*mut (); L]) -> Self;
+    unsafe fn from_erased_mut_ptr_array(array: [*mut (); L]) -> Self;
 }
 
 macro_rules! impl_component_tuple {
     ($($t:ident),*) => {
-        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for ($(&$t,)*)
+        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for ($($t,)*)
         where
-            $($t: Component),*,
+            $($t: 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
             // TODO
             // Currently we transform TypeId to u64, but this is wrond
             // Wait untill TypId can be compared in compile time and change this mess
             const IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids_u64: [u64; count_tts!($($t)*)] = [$(unsafe { std::mem::transmute::<_, u64>(TypeId::of::<$t>()) }),*];
+                let ids_u64: [u64; count_tts!($($t)*)] = [
+                    $(
+                        unsafe {
+                            std::mem::transmute::<_, u64>(TypeId::of::<<$t as ComponentRef>::Component>()) 
+                        }
+                    ),*
+                ];
                 let ids_u64 = static_sort(ids_u64, 0, count_tts!($($t)*) as isize - 1);
-                let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<$t>()),*];
+                let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<<$t as ComponentRef>::Component>()),*];
                 let mut _index = 0;
                 $(
                     let _ = TypeId::of::<$t>();
@@ -151,33 +161,7 @@ macro_rules! impl_component_tuple {
                ids_type_id
             };
 
-            unsafe fn from_erased_ref_array(array: [&(); count_tts!($($t)*)]) -> Self {
-                const L:usize = count_tts!($($t)*);
-                tuple_from_array!(L, array, $($t,)*).flatten()
-            }
-        }
-
-        impl<$($t),*> ComponentTupleMut<{count_tts!($($t)*)}> for ($(&mut $t,)*)
-        where
-            $($t: Component),*,
-        {
-            // TODO
-            // Currently we transform TypeId to u64, but this is wrond
-            // Wait untill TypId can be compared in compile time and change this mess
-            const IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids_u64: [u64; count_tts!($($t)*)] = [$(unsafe { std::mem::transmute::<_, u64>(TypeId::of::<$t>()) }),*];
-                let ids_u64 = static_sort(ids_u64, 0, count_tts!($($t)*) as isize - 1);
-                let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<$t>()),*];
-                let mut _index = 0;
-                $(
-                    let _ = TypeId::of::<$t>();
-                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
-                    _index += 1;
-                )*
-               ids_type_id
-            };
-
-            unsafe fn from_erased_ref_array_mut(array: [*mut (); count_tts!($($t)*)]) -> Self {
+            unsafe fn from_erased_mut_ptr_array(array: [*mut (); count_tts!($($t)*)]) -> Self {
                 const L:usize = count_tts!($($t)*);
                 tuple_from_array!(L, array, $($t,)*).flatten()
             }
@@ -187,87 +171,9 @@ macro_rules! impl_component_tuple {
 
 impl_component_tuple!(C1);
 impl_component_tuple!(C1, C2);
-// impl_component_tuple!(C1, C2, C3);
+impl_component_tuple!(C1, C2, C3);
 impl_component_tuple!(C1, C2, C3, C4);
 impl_component_tuple!(C1, C2, C3, C4, C5);
-
-impl<A, B, C> ComponentTuple<3> for (A, B, C)
-where
-    A: UnderlyingType,
-    <A as UnderlyingType>::Under: Component,
-    B: UnderlyingType,
-    <B as UnderlyingType>::Under: Component,
-    C: UnderlyingType,
-    <C as UnderlyingType>::Under: Component,
-{
-    const IDS: [TypeId; 3] = {
-        let ids_u64: [u64; 3] = [
-            unsafe { std::mem::transmute::<_, u64>(TypeId::of::<<A as UnderlyingType>::Under>()) },
-            unsafe { std::mem::transmute::<_, u64>(TypeId::of::<<B as UnderlyingType>::Under>()) },
-            unsafe { std::mem::transmute::<_, u64>(TypeId::of::<<C as UnderlyingType>::Under>()) },
-        ];
-        let ids_u64 = static_sort(ids_u64, 0, 3 as isize - 1);
-        let mut ids_type_id: [TypeId; 3] = [
-            TypeId::of::<<A as UnderlyingType>::Under>(),
-            TypeId::of::<<B as UnderlyingType>::Under>(),
-            TypeId::of::<<C as UnderlyingType>::Under>(),
-        ];
-        let mut _index = 0;
-        ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
-        _index += 1;
-        ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
-        _index += 1;
-        ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
-        _index += 1;
-        ids_type_id
-    };
-
-    unsafe fn from_erased_ref_array(array: [&(); 3]) -> Self {
-        (
-            std::mem::transmute(array[0]),
-            std::mem::transmute(array[1]),
-            std::mem::transmute(array[2]),
-        )
-    }
-}
-
-// macro_rules! impl_component_tuple_new {
-//     ($($t:ident),*) => {
-//         impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for ($($t,)*)
-//         where
-//             $($t: UnderlyingType, <$t as UnderlyingType>::Under: Component),*,
-//         {
-//             // TODO
-//             // Currently we transform TypeId to u64, but this is wrond
-//             // Wait untill TypId can be compared in compile time and change this mess
-//             const IDS: [TypeId; count_tts!($($t)*)] = {
-//                 let ids_u64: [u64; count_tts!($($t)*)] = [$(unsafe { std::mem::transmute::<_, u64>(TypeId::of::<$t>()) }),*];
-//                 let ids_u64 = static_sort(ids_u64, 0, count_tts!($($t)*) as isize - 1);
-//                 let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<<$t as UnderlyingType>::Under>()),*];
-//                 let mut _index = 0;
-//                 $(
-//                     let _ = TypeId::of::<$t>();
-//                     ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
-//                     _index += 1;
-//                 )*
-//                ids_type_id
-//             };
-//
-//             type Refs = i32;
-//
-//             unsafe fn from_erased_ref_array(array: [&(); count_tts!($($t)*)]) -> Self {
-//                 const L:usize = count_tts!($($t)*);
-//                 tuple_from_array!(L, array, $($t,)*).flatten()
-//             }
-//         }
-//     };
-// }
-
-// impl_component_tuple_new!(C1);
-// impl_component_tuple_new!(C1, C2);
-// impl_component_tuple_new!(C1, C2, C3);
-// impl_component_tuple_new!(C1, C2, C3, C4);
-// impl_component_tuple_new!(C1, C2, C3, C4, C5);
 
 #[cfg(test)]
 mod test {
@@ -292,5 +198,26 @@ mod test {
         assert_eq!(<(&i32, &bool, &mut u8)>::ids(), expected);
 
         assert_eq!(<(&mut i32, &mut bool, &mut u8)>::ids(), expected);
+    }
+
+    #[test]
+    fn components_convert() {
+        let a = 1;
+        let b = 1.1;
+        let c = false;
+
+        let array: [*mut (); 3] = [
+            &a as *const i32 as *mut (),
+            &b as *const f64 as *mut (),
+            &c as *const bool as *mut (),
+        ];
+        let q = unsafe {
+            <(&mut i32, &mut f64, &mut bool) as ComponentTuple<3>>::from_erased_mut_ptr_array(array)
+        };
+        *q.0 += 1;
+        *q.2 = true;
+        assert_eq!(*q.0, 2);
+        assert_eq!(*q.1, 1.1);
+        assert!(*q.2);
     }
 }

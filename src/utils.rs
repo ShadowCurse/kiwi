@@ -66,13 +66,13 @@ macro_rules! count_tts {
 macro_rules! tuple_from_array {
     ($total:ident, $array:ident, $head:tt,) => {
         (
-            std::mem::transmute($array[$total - 1]),
+            <$head as ComponentRef>::from_raw_ptr($array[$total - 1]),
         )
     };
 
     ($total:ident, $array:ident, $head:tt, $($tail:tt,)*) => {
             (
-                std::mem::transmute($array[$total - 1 - $crate::count_tts!($($tail)*)]),
+                <$head as ComponentRef>::from_raw_ptr($array[$total - 1 - $crate::count_tts!($($tail)*)]),
                 $crate::tuple_from_array!($total, $array, $($tail,)*),
             )
     };

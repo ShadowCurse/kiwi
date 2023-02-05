@@ -1,14 +1,14 @@
 use std::marker::PhantomData;
 
 use crate::{
-    component::{ComponentTuple, ComponentTupleMut},
+    component::ComponentTuple,
     system::{SystemParameter, SystemParameterFetch},
     world::World,
 };
 
 pub struct Query<'world, T, const L: usize>
 where
-    T: ComponentTuple<L>,
+    T: ComponentTuple<L> + 'static,
 {
     world: &'world World,
     phantom: PhantomData<T>,
@@ -39,54 +39,9 @@ where
 
 impl<T, const L: usize> SystemParameterFetch for QueryFetch<T, L>
 where
-    T: ComponentTuple<L>,
+    T: ComponentTuple<L> + 'static,
 {
     type Item<'a> = Query<'a, T, L>;
-
-    fn fetch(world: &mut World) -> Self::Item<'_> {
-        Self::Item {
-            world,
-            phantom: PhantomData,
-        }
-    }
-}
-
-pub struct QueryMut<'world, T, const L: usize>
-where
-    T: ComponentTupleMut<L>,
-{
-    world: &'world mut World,
-    phantom: PhantomData<T>,
-}
-
-impl<'ecs, T, const L: usize> QueryMut<'ecs, T, L>
-where
-    T: ComponentTupleMut<L> + 'ecs,
-{
-    fn iter<'a>(&'a self) -> impl Iterator<Item = T> + 'a {
-        self.world.query_mut::<T, L>()
-    }
-}
-
-impl<'a, T, const L: usize> SystemParameter for QueryMut<'a, T, L>
-where
-    T: ComponentTupleMut<L>,
-{
-    type Fetch = QueryFetchMut<T, L>;
-}
-
-pub struct QueryFetchMut<T, const L: usize>
-where
-    T: ComponentTupleMut<L>,
-{
-    phantom: PhantomData<T>,
-}
-
-impl<T, const L: usize> SystemParameterFetch for QueryFetchMut<T, L>
-where
-    T: ComponentTupleMut<L>,
-{
-    type Item<'a> = QueryMut<'a, T, L>;
 
     fn fetch(world: &mut World) -> Self::Item<'_> {
         Self::Item {
@@ -185,7 +140,7 @@ mod test {
         ecs.add_component(entity3, 8u16).unwrap();
         ecs.add_component(entity3, 9u64).unwrap();
 
-        fn query_u8_u16_u32_mutate(query: QueryMut<(&mut u8, &mut u16, &mut u32), 3>) {
+        fn query_u8_u16_u32_mutate(query: Query<(&mut u8, &mut u16, &mut u32), 3>) {
             for (_u8, _u16, _u32) in query.iter() {
                 *_u8 += 1;
                 *_u16 += 1;
