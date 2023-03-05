@@ -151,7 +151,7 @@ impl World {
                 // Save because tables ids are different
                 unsafe {
                     self.storage
-                        .transfer_line_with_deletion(old_table_id, new_table_id, entity)?
+                        .transfer_line_with_deletion::<C>(old_table_id, new_table_id, entity)?
                 };
             }
             None => Err(WorldError::NonExistingEntity(entity))?,

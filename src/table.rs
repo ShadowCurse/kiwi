@@ -87,7 +87,7 @@ impl TableStorage {
         Ok(())
     }
 
-    pub unsafe fn transfer_line_with_deletion(
+    pub unsafe fn transfer_line_with_deletion<T: Component>(
         &mut self,
         from: TableId,
         to: TableId,
@@ -99,6 +99,7 @@ impl TableStorage {
         };
         to.add_entity(entity);
         to.copy_line_from(from, &entity)?;
+        from.drop_component::<T>(&entity)?;
         from.remove_entity(&entity);
         Ok(())
     }
@@ -177,7 +178,7 @@ impl Table {
         for component_info in archetype_info.iter() {
             table
                 .columns
-                .insert(component_info.id, BlobVec::new(component_info.layout));
+                .insert(component_info.id, BlobVec::new(component_info.layout, component_info.drop));
         }
         table
     }
@@ -256,7 +257,7 @@ impl Table {
             Some(column) => {
                 // #Safety
                 // We know that slice corresponce to correct type
-                unsafe { column.insert_from_slice(line, component) };
+                unsafe { column.overwrite_from_slice(line, component) };
                 Ok(())
             }
             None => Err(TableError::TableDoesNotContainComponentColumn),
@@ -275,7 +276,26 @@ impl Table {
                 // If column exist for the type
                 // then it is safe to add component of this type
                 unsafe {
-                    column.insert(line, component);
+                    column.overwrite(line, component);
+                }
+                Ok(())
+            }
+            None => Err(TableError::TableDoesNotContainComponentColumn),
+        }
+    }
+
+    pub fn drop_component<C: Component>(
+        &mut self,
+        entity: &Entity,
+    ) -> Result<(), TableError> {
+        let line = self.entities[entity];
+        let type_id = TypeId::of::<C>();
+        match self.columns.get_mut(&type_id) {
+            Some(column) => {
+                // If column exist for the type
+                // then it is safe to add component of this type
+                unsafe {
+                    column.drop_at(line);
                 }
                 Ok(())
             }
@@ -507,7 +527,7 @@ mod test {
 
         unsafe {
             table_storage
-                .transfer_line_with_deletion(table_id_1, table_id_2, entity)
+                .transfer_line_with_deletion::<u32>(table_id_1, table_id_2, entity)
                 .unwrap()
         };
 

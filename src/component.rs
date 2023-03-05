@@ -30,7 +30,11 @@ where
     }
 }
 
-pub trait Component: 'static {}
+pub trait Component: Sized + 'static {
+    unsafe fn component_drop(component: *mut ()) {
+        component.cast::<Self>().drop_in_place();
+    }
+}
 
 macro_rules! impl_component {
     ($t:tt) => {
@@ -56,13 +60,20 @@ impl_component!(f64);
 pub struct ComponentInfo {
     pub id: TypeId,
     pub layout: Layout,
+    pub drop: Option<fn(*mut ())>,
 }
 
 impl ComponentInfo {
-    pub fn new<T: Component>() -> Self {
+    pub const fn new<T: Component>() -> Self {
+        let drop = if std::mem::needs_drop::<T>() {
+            Some(unsafe { std::mem::transmute(&<T as Component>::component_drop) })
+        } else {
+            None
+        };
         Self {
             id: TypeId::of::<T>(),
             layout: Layout::new::<T>(),
+            drop,
         }
     }
 }
@@ -146,7 +157,7 @@ macro_rules! impl_component_tuple {
                 let ids_u64: [u64; count_tts!($($t)*)] = [
                     $(
                         unsafe {
-                            std::mem::transmute::<_, u64>(TypeId::of::<<$t as ComponentRef>::Component>()) 
+                            std::mem::transmute::<_, u64>(TypeId::of::<<$t as ComponentRef>::Component>())
                         }
                     ),*
                 ];
