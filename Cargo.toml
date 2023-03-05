@@ -3,5 +3,12 @@ name = "kiwi"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+trace = []
+
 [dependencies]
 thiserror = "1.0.37"
+
+[[example]]
+name = "simple"
+path = "examples/simple.rs"
