@@ -3,13 +3,13 @@
 #![feature(concat_idents)]
 #![feature(fn_traits)]
 
-mod archetype;
-mod blobvec;
-mod component;
-mod entity;
-mod query;
-mod sparse_set;
-mod system;
-mod table;
-mod utils;
-mod world;
+pub mod archetype;
+pub mod blobvec;
+pub mod component;
+pub mod entity;
+pub mod query;
+pub mod sparse_set;
+pub mod system;
+pub mod table;
+pub mod utils;
+pub mod world;
