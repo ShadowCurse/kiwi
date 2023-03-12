@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
-pub enum TableError {
+pub enum Error {
     #[error("Table does not exist in the TableStorage")]
     TableDoesNotExist,
     #[error("Table does not contain component column")]
@@ -45,13 +45,13 @@ impl TableStorage {
         TableId(table_id)
     }
 
-    pub fn add_entity(&mut self, table_id: TableId, entity: Entity) -> Result<(), TableError> {
+    pub fn add_entity(&mut self, table_id: TableId, entity: Entity) -> Result<(), Error> {
         match self.tables.get_mut(table_id.0) {
             Some(table) => {
                 table.add_entity(entity);
                 Ok(())
             }
-            None => Err(TableError::TableDoesNotExist),
+            None => Err(Error::TableDoesNotExist),
         }
     }
 
@@ -60,10 +60,10 @@ impl TableStorage {
         table_id: TableId,
         entity: &Entity,
         component: T,
-    ) -> Result<(), TableError> {
+    ) -> Result<(), Error> {
         match self.tables.get_mut(table_id.0) {
             Some(table) => table.insert_component(entity, component),
-            None => Err(TableError::TableDoesNotExist),
+            None => Err(Error::TableDoesNotExist),
         }
     }
 
@@ -75,10 +75,10 @@ impl TableStorage {
         to: TableId,
         entity: Entity,
         new_component: T,
-    ) -> Result<(), TableError> {
+    ) -> Result<(), Error> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
             Some((from, to)) => (from, to),
-            None => Err(TableError::NonExistingTable)?,
+            None => Err(Error::NonExistingTable)?,
         };
         to.add_entity(entity);
         to.copy_line_from(from, &entity)?;
@@ -92,10 +92,10 @@ impl TableStorage {
         from: TableId,
         to: TableId,
         entity: Entity,
-    ) -> Result<(), TableError> {
+    ) -> Result<(), Error> {
         let (from, to) = match self.tables.get_2_mut(from.0, to.0) {
             Some((from, to)) => (from, to),
-            None => Err(TableError::NonExistingTable)?,
+            None => Err(Error::NonExistingTable)?,
         };
         to.add_entity(entity);
         to.copy_line_from(from, &entity)?;
@@ -229,7 +229,7 @@ impl Table {
             .map(|column| unsafe { column.get_mut(line) })
     }
 
-    pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), TableError> {
+    pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), Error> {
         let line = self.entities[entity];
         for type_id in self.intersection(table).iter() {
             self.copy_component_from_slice(
@@ -252,7 +252,7 @@ impl Table {
         type_id: &TypeId,
         line: usize,
         component: &[u8],
-    ) -> Result<(), TableError> {
+    ) -> Result<(), Error> {
         match self.columns.get_mut(type_id) {
             Some(column) => {
                 // #Safety
@@ -260,7 +260,7 @@ impl Table {
                 unsafe { column.overwrite_from_slice(line, component) };
                 Ok(())
             }
-            None => Err(TableError::TableDoesNotContainComponentColumn),
+            None => Err(Error::TableDoesNotContainComponentColumn),
         }
     }
 
@@ -268,7 +268,7 @@ impl Table {
         &mut self,
         entity: &Entity,
         component: C,
-    ) -> Result<(), TableError> {
+    ) -> Result<(), Error> {
         let line = self.entities[entity];
         let type_id = TypeId::of::<C>();
         match self.columns.get_mut(&type_id) {
@@ -280,14 +280,14 @@ impl Table {
                 }
                 Ok(())
             }
-            None => Err(TableError::TableDoesNotContainComponentColumn),
+            None => Err(Error::TableDoesNotContainComponentColumn),
         }
     }
 
     pub fn drop_component<C: Component>(
         &mut self,
         entity: &Entity,
-    ) -> Result<(), TableError> {
+    ) -> Result<(), Error> {
         let line = self.entities[entity];
         let type_id = TypeId::of::<C>();
         match self.columns.get_mut(&type_id) {
@@ -299,7 +299,7 @@ impl Table {
                 }
                 Ok(())
             }
-            None => Err(TableError::TableDoesNotContainComponentColumn),
+            None => Err(Error::TableDoesNotContainComponentColumn),
         }
     }
 

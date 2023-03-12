@@ -8,7 +8,7 @@ use crate::sparse_set::SparseSet;
 use crate::utils::TypeInfo;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
-pub enum ArchetypeError {
+pub enum Error {
     #[error("Adding component dublicate to the archetype")]
     AddingComponentDuplicate,
     #[error("Removing non existing component form the archetype")]
@@ -67,11 +67,11 @@ impl ArchetypeInfo {
         self.components.is_empty()
     }
 
-    pub fn add_component<T: Component>(&mut self) -> Result<(), ArchetypeError> {
+    pub fn add_component<T: Component>(&mut self) -> Result<(), Error> {
         let component_info = TypeInfo::new::<T>();
         match self.components.insert(component_info) {
             true => Ok(()),
-            false => Err(ArchetypeError::AddingComponentDuplicate),
+            false => Err(Error::AddingComponentDuplicate),
         }
     }
 
@@ -80,11 +80,11 @@ impl ArchetypeInfo {
         self.components.contains(&component_info)
     }
 
-    pub fn remove_component<T: Component>(&mut self) -> Result<(), ArchetypeError> {
+    pub fn remove_component<T: Component>(&mut self) -> Result<(), Error> {
         let component_info = TypeInfo::new::<T>();
         match self.components.remove(&component_info) {
             true => Ok(()),
-            false => Err(ArchetypeError::RemovingNonExistingComponent),
+            false => Err(Error::RemovingNonExistingComponent),
         }
     }
 
@@ -110,17 +110,17 @@ pub struct Archetypes {
 }
 
 impl Archetypes {
-    pub fn insert(&mut self, archetype_info: ArchetypeInfo) -> Result<ArchetypeId, ArchetypeError> {
+    pub fn insert(&mut self, archetype_info: ArchetypeInfo) -> Result<ArchetypeId, Error> {
         let arch = archetype_info.archetype();
         let archetype_id = ArchetypeId(self.archetypes_info.insert(archetype_info));
         self.archetypes_trie.insert(arch, archetype_id)?;
         Ok(archetype_id)
     }
 
-    pub fn get_info(&self, archetype_id: ArchetypeId) -> Result<&ArchetypeInfo, ArchetypeError> {
+    pub fn get_info(&self, archetype_id: ArchetypeId) -> Result<&ArchetypeInfo, Error> {
         self.archetypes_info
             .get(archetype_id.0)
-            .ok_or(ArchetypeError::NonExistingArchetype)
+            .ok_or(Error::NonExistingArchetype)
     }
 
     pub fn get_id(&self, archetype: &ArchetypeInfo) -> Option<ArchetypeId> {
@@ -149,7 +149,7 @@ impl ArchetypesTrie {
         &mut self,
         archetype: Archetype,
         archetype_id: ArchetypeId,
-    ) -> Result<(), ArchetypeError> {
+    ) -> Result<(), Error> {
         if archetype.is_empty() {
             self.empty_id = Some(archetype_id);
             Ok(())
@@ -163,7 +163,7 @@ impl ArchetypesTrie {
         }
     }
 
-    pub fn remove(&mut self, archetype: Archetype) -> Result<(), ArchetypeError> {
+    pub fn remove(&mut self, archetype: Archetype) -> Result<(), Error> {
         if archetype.is_empty() {
             Ok(())
         } else {
@@ -191,7 +191,7 @@ impl ArchetypesTrie {
         components: &[TypeId],
         index: usize,
         archetype_id: ArchetypeId,
-    ) -> Result<(), ArchetypeError> {
+    ) -> Result<(), Error> {
         match (
             index == components.len() - 1,
             nodes.binary_search_by_key(&components[index], |node| node.component_id),
@@ -202,7 +202,7 @@ impl ArchetypesTrie {
                 index + 1,
                 archetype_id,
             ),
-            (true, Ok(_)) => Err(ArchetypeError::InsertingArchetypeDuplicate),
+            (true, Ok(_)) => Err(Error::InsertingArchetypeDuplicate),
             (last, Err(i)) => {
                 let node = ArchetypeNode::new(components[index]);
                 nodes.insert(i, node);
@@ -225,7 +225,7 @@ impl ArchetypesTrie {
         nodes: &mut Vec<ArchetypeNode>,
         components: &[TypeId],
         index: usize,
-    ) -> Result<(), ArchetypeError> {
+    ) -> Result<(), Error> {
         match (
             index == components.len() - 1,
             nodes.binary_search_by_key(&components[index], |node| node.component_id),
@@ -241,7 +241,7 @@ impl ArchetypesTrie {
                 }
                 Ok(())
             }
-            (_, Err(_)) => Err(ArchetypeError::RemovingNonExistingArchetype),
+            (_, Err(_)) => Err(Error::RemovingNonExistingArchetype),
         }
     }
 

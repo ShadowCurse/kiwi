@@ -30,11 +30,7 @@ where
     }
 }
 
-pub trait Component: Sized + 'static {
-    unsafe fn component_drop(component: *mut ()) {
-        component.cast::<Self>().drop_in_place();
-    }
-}
+pub trait Component: Sized + 'static {}
 
 macro_rules! impl_component {
     ($t:tt) => {
@@ -55,28 +51,6 @@ impl_component!(i64);
 impl_component!(i128);
 impl_component!(f32);
 impl_component!(f64);
-
-// #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-// pub struct ComponentInfo {
-//     pub id: TypeId,
-//     pub layout: Layout,
-//     pub drop: Option<fn(*mut ())>,
-// }
-//
-// impl ComponentInfo {
-//     pub const fn new<T: Component>() -> Self {
-//         let drop = if std::mem::needs_drop::<T>() {
-//             Some(unsafe { std::mem::transmute(&<T as Component>::component_drop) })
-//         } else {
-//             None
-//         };
-//         Self {
-//             id: TypeId::of::<T>(),
-//             layout: Layout::new::<T>(),
-//             drop,
-//         }
-//     }
-// }
 
 pub trait FlattenTuple {
     type Flatten;
@@ -141,6 +115,8 @@ pub trait ComponentTuple<const L: usize> {
         &Self::IDS
     }
 
+    /// # Safety
+    /// Pointers in the array should be of the correct types
     unsafe fn from_erased_mut_ptr_array(array: [*mut (); L]) -> Self;
 }
 

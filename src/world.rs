@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
-use crate::archetype::{ArchetypeError, ArchetypeId, ArchetypeInfo, Archetypes};
+use crate::archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
 use crate::component::{Component, ComponentTuple};
 use crate::entity::{Entity, EntityGenerator};
-use crate::resources::{Resource, ResourceError, Resources};
-use crate::table::{TableError, TableId, TableStorage};
+use crate::resources::{Resource, Resources};
+use crate::table::{TableId, TableStorage};
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
-pub enum WorldError {
+pub enum Error {
     #[error("Archetype error: {0}")]
-    ArchetypeError(#[from] ArchetypeError),
+    ArchetypeError(#[from] crate::archetype::Error),
     #[error("Table error: {0}")]
-    TableError(#[from] TableError),
+    TableError(#[from] crate::table::Error),
     #[error("Resources error: {0}")]
-    Resources(#[from] ResourceError),
+    Resources(#[from] crate::resources::Error),
     #[error("Archetype has no corresponding table")]
     RogueArchetype,
     #[error("Entity {0} does not exist")]
@@ -50,13 +50,13 @@ impl World {
         &mut self,
         entity: Entity,
         component: C,
-    ) -> Result<(), WorldError> {
+    ) -> Result<(), Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
                 let mut arch_info = self.archetypes.get_info(*arch)?.clone();
                 let old_table_id = match self.archetype_to_table.get(arch) {
                     Some(table_id) => *table_id,
-                    None => Err(WorldError::RogueArchetype)?,
+                    None => Err(Error::RogueArchetype)?,
                 };
 
                 arch_info.add_component::<C>()?;
@@ -122,13 +122,13 @@ impl World {
 
     /// Removes component from the entity
     /// Returns error if component does not exist
-    pub fn remove_component<C: Component>(&mut self, entity: Entity) -> Result<(), WorldError> {
+    pub fn remove_component<C: Component>(&mut self, entity: Entity) -> Result<(), Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
                 let mut arch_info = self.archetypes.get_info(*arch)?.clone();
                 let old_table_id = match self.archetype_to_table.get(arch) {
                     Some(table_id) => *table_id,
-                    None => Err(WorldError::RogueArchetype)?,
+                    None => Err(Error::RogueArchetype)?,
                 };
 
                 arch_info.remove_component::<C>()?;
@@ -161,7 +161,7 @@ impl World {
                     )?
                 };
             }
-            None => Err(WorldError::NonExistingEntity(entity))?,
+            None => Err(Error::NonExistingEntity(entity))?,
         }
         Ok(())
     }
@@ -170,16 +170,16 @@ impl World {
         self.resources.add(resource)
     }
 
-    pub fn remove_resource<T: Resource>(&mut self) -> Result<(), WorldError> {
-        self.resources.remove::<T>().map_err(WorldError::Resources)
+    pub fn remove_resource<T: Resource>(&mut self) -> Result<(), Error> {
+        self.resources.remove::<T>().map_err(Error::Resources)
     }
 
-    pub fn get_resource<T: Resource>(&self) -> Result<&T, WorldError> {
-        self.resources.get::<T>().map_err(WorldError::Resources)
+    pub fn get_resource<T: Resource>(&self) -> Result<&T, Error> {
+        self.resources.get::<T>().map_err(Error::Resources)
     }
 
-    pub fn get_resource_mut<T: Resource>(&mut self) -> Result<&mut T, WorldError> {
-        self.resources.get_mut::<T>().map_err(WorldError::Resources)
+    pub fn get_resource_mut<T: Resource>(&mut self) -> Result<&mut T, Error> {
+        self.resources.get_mut::<T>().map_err(Error::Resources)
     }
 
     pub fn query<'a, 'b, 'c, CT, const L: usize>(&'a self) -> impl Iterator<Item = CT> + '_

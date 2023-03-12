@@ -3,12 +3,11 @@ use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 use crate::{
     blobvec::BlobVec,
     system::{SystemParameter, SystemParameterFetch},
-    utils::TypeInfo,
-    world::{World, WorldError},
+    utils::TypeInfo, world::World,
 };
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
-pub enum ResourceError {
+pub enum Error {
     #[error("Attemt to remove non existing resource (type id: {0})")]
     RemoveNonExisting(&'static str),
     #[error("Attemt to get non existing resource (type id: {0})")]
@@ -29,7 +28,7 @@ impl<T> Res<'_, T>
 where
     T: Resource,
 {
-    pub fn get(&self) -> Result<&T, WorldError> {
+    pub fn get(&self) -> Result<&T, crate::world::Error> {
         self.world.get_resource()
     }
 }
@@ -74,7 +73,7 @@ impl<T> ResMut<'_, T>
 where
     T: Resource,
 {
-    pub fn get_mut(&mut self) -> Result<&mut T, WorldError> {
+    pub fn get_mut(&mut self) -> Result<&mut T, crate::world::Error> {
         self.world.get_resource_mut()
     }
 }
@@ -136,7 +135,7 @@ impl Resources {
         }
     }
 
-    pub fn remove<T: Resource>(&mut self) -> Result<(), ResourceError> {
+    pub fn remove<T: Resource>(&mut self) -> Result<(), Error> {
         let type_info = TypeInfo::new::<T>();
         self.columns
             .remove(&type_info.id)
@@ -149,28 +148,28 @@ impl Resources {
                     column.drop_at(0);
                 }
             })
-            .ok_or(ResourceError::RemoveNonExisting(type_info.name))
+            .ok_or(Error::RemoveNonExisting(type_info.name))
     }
 
-    pub fn get<T: Resource>(&self) -> Result<&T, ResourceError> {
+    pub fn get<T: Resource>(&self) -> Result<&T, Error> {
         let type_info = TypeInfo::new::<T>();
         match self.columns.get(&type_info.id) {
             Some(column) => {
                 // Safe because column contains a corret type
                 Ok(unsafe { column.get::<T>(0) })
             }
-            None => Err(ResourceError::GetNonExisting(type_info.name)),
+            None => Err(Error::GetNonExisting(type_info.name)),
         }
     }
 
-    pub fn get_mut<T: Resource>(&mut self) -> Result<&mut T, ResourceError> {
+    pub fn get_mut<T: Resource>(&mut self) -> Result<&mut T, Error> {
         let type_info = TypeInfo::new::<T>();
         match self.columns.get_mut(&type_info.id) {
             Some(column) => {
                 // Safe because column contains a corret type
                 Ok(unsafe { column.get_mut::<T>(0) })
             }
-            None => Err(ResourceError::GetNonExisting(type_info.name)),
+            None => Err(Error::GetNonExisting(type_info.name)),
         }
     }
 }
@@ -216,10 +215,7 @@ mod test {
         assert_eq!(&b, get_b);
 
         let get_c = resources.get::<C>().unwrap_err();
-        assert_eq!(
-            get_c,
-            ResourceError::GetNonExisting("kiwi::resources::test::C")
-        );
+        assert_eq!(get_c, Error::GetNonExisting("kiwi::resources::test::C"));
     }
 
     #[test]
@@ -235,23 +231,17 @@ mod test {
         assert!(resources.remove::<A>().is_ok());
 
         let get_a = resources.get::<A>().unwrap_err();
-        assert_eq!(
-            get_a,
-            ResourceError::GetNonExisting("kiwi::resources::test::A")
-        );
+        assert_eq!(get_a, Error::GetNonExisting("kiwi::resources::test::A"));
 
         let get_b = resources.get::<B>().unwrap();
         assert_eq!(&b, get_b);
 
         let get_c = resources.get::<C>().unwrap_err();
-        assert_eq!(
-            get_c,
-            ResourceError::GetNonExisting("kiwi::resources::test::C")
-        );
+        assert_eq!(get_c, Error::GetNonExisting("kiwi::resources::test::C"));
 
         assert_eq!(
             resources.remove::<C>().unwrap_err(),
-            ResourceError::RemoveNonExisting("kiwi::resources::test::C")
+            Error::RemoveNonExisting("kiwi::resources::test::C")
         );
     }
 
@@ -308,7 +298,7 @@ mod test {
         fn get_c(res: Res<C>) {
             assert_eq!(
                 res.get().unwrap_err(),
-                WorldError::Resources(ResourceError::GetNonExisting("kiwi::resources::test::C"))
+                crate::world::Error::Resources(Error::GetNonExisting("kiwi::resources::test::C"))
             );
         }
 
@@ -344,7 +334,7 @@ mod test {
         fn mutate_c(mut res: ResMut<C>) {
             assert_eq!(
                 res.get_mut().unwrap_err(),
-                WorldError::Resources(ResourceError::GetNonExisting("kiwi::resources::test::C"))
+                crate::world::Error::Resources(Error::GetNonExisting("kiwi::resources::test::C"))
             );
         }
 
