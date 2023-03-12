@@ -18,7 +18,7 @@ impl TypeInfo {
         Self {
             id: TypeId::of::<T>(),
             layout: Layout::new::<T>(),
-            name: std::any::type_name::<Self>(),
+            name: std::any::type_name::<T>(),
             drop,
         }
     }
