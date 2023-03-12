@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::archetype::{ArchetypeError, ArchetypeId, ArchetypeInfo, Archetypes};
 use crate::component::{Component, ComponentTuple};
 use crate::entity::{Entity, EntityGenerator};
+use crate::resources::{Resource, ResourceError, Resources};
 use crate::table::{TableError, TableId, TableStorage};
 
 #[derive(Debug, thiserror::Error)]
@@ -11,6 +12,8 @@ pub enum WorldError {
     ArchetypeError(#[from] ArchetypeError),
     #[error("Table error: {0}")]
     TableError(#[from] TableError),
+    #[error("Resources error: {0}")]
+    Resources(#[from] ResourceError),
     #[error("Archetype has no corresponding table")]
     RogueArchetype,
     #[error("Entity {0} does not exist")]
@@ -22,6 +25,7 @@ pub struct World {
     entity_generator: EntityGenerator,
     archetypes: Archetypes,
     storage: TableStorage,
+    resources: Resources,
     /// Mapping of entities to their archetypes
     entity_to_archetype: HashMap<Entity, ArchetypeId>,
     /// Mapping of archetypes to their tables
@@ -150,12 +154,24 @@ impl World {
                 // # Safety
                 // Save because tables ids are different
                 unsafe {
-                    self.storage
-                        .transfer_line_with_deletion::<C>(old_table_id, new_table_id, entity)?
+                    self.storage.transfer_line_with_deletion::<C>(
+                        old_table_id,
+                        new_table_id,
+                        entity,
+                    )?
                 };
             }
             None => Err(WorldError::NonExistingEntity(entity))?,
         }
+        Ok(())
+    }
+
+    pub fn add_resource<T: Resource>(&mut self, resource: T) {
+        self.resources.add(resource)
+    }
+
+    pub fn remove_resource<T: Resource>(&mut self) -> Result<(), WorldError> {
+        self.resources.remove::<T>()?;
         Ok(())
     }
 
