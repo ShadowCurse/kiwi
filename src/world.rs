@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 
 use crate::archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
 use crate::component::{Component, ComponentTuple};
 use crate::entity::{Entity, EntityGenerator};
 use crate::resources::{Resource, Resources};
+use crate::system::{SystemParameter, SystemParameterFetch};
 use crate::table::{TableId, TableStorage};
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -196,6 +198,64 @@ impl World {
         self.storage
             .query::<_, CT, L>(table_id_iter)
             .map(|array| unsafe { CT::from_erased_mut_ptr_array(array) })
+    }
+}
+
+pub struct WorldRef<'world> {
+    world: &'world World,
+}
+
+impl Deref for WorldRef<'_> {
+    type Target = World;
+
+    fn deref(&self) -> &Self::Target {
+        self.world
+    }
+}
+
+impl SystemParameter for WorldRef<'_> {
+    type Fetch = WorldRefFetch;
+}
+
+pub struct WorldRefFetch;
+
+impl SystemParameterFetch for WorldRefFetch {
+    type Item<'a> = WorldRef<'a>;
+
+    fn fetch(world: &mut World) -> Self::Item<'_> {
+        Self::Item { world }
+    }
+}
+
+pub struct WorldRefMut<'world> {
+    world: &'world mut World,
+}
+
+impl Deref for WorldRefMut<'_> {
+    type Target = World;
+
+    fn deref(&self) -> &Self::Target {
+        self.world
+    }
+}
+
+impl DerefMut for WorldRefMut<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.world
+    }
+}
+
+impl SystemParameter for WorldRefMut<'_> {
+    type Fetch = WorldRefMutFetch;
+}
+
+pub struct WorldRefMutFetch;
+
+impl SystemParameterFetch for WorldRefMutFetch {
+    type Item<'a> = WorldRefMut<'a>;
+
+    fn fetch(world: &mut World) -> Self::Item<'_> {
+        Self::Item { world }
     }
 }
 
