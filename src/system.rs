@@ -29,12 +29,33 @@ pub trait SystemParameterFunction<Parameter: SystemParameter>: 'static {
     fn run(&mut self, params: SystemParameterItem<Parameter>);
 }
 
-#[derive(Default)]
 pub struct Systems {
+    is_startup: bool,
+    startup_systems: Vec<Box<dyn System>>,
     systems: Vec<Box<dyn System>>,
 }
 
+impl Default for Systems {
+    fn default() -> Self {
+        Self {
+            is_startup: true,
+            startup_systems: Default::default(),
+            systems: Default::default(),
+        }
+    }
+}
+
 impl Systems {
+    /// Adds system that is run only on startup
+    pub fn add_startup_system<S, P>(&mut self, system: S)
+    where
+        S: IntoSystem<P>,
+        P: SystemParameter,
+    {
+        self.startup_systems.push(Box::new(system.into_system()));
+    }
+
+    /// Adds system that is run on every [`Systems::run`] call;
     pub fn add_system<S, P>(&mut self, system: S)
     where
         S: IntoSystem<P>,
@@ -43,7 +64,15 @@ impl Systems {
         self.systems.push(Box::new(system.into_system()));
     }
 
+    /// Runs all the systems
     pub fn run(&mut self, world: &mut World) {
+        if self.is_startup {
+            for system in self.startup_systems.iter_mut() {
+                system.run(world);
+            }
+            self.is_startup = false;
+        }
+
         for system in self.systems.iter_mut() {
             system.run(world);
         }
@@ -183,17 +212,19 @@ mod test {
 
     #[test]
     fn systems_add_and_run_systems() {
+        static mut VAR: u64 = 0;
+
         fn test_sys() {
-            println!("test_sys()");
+            unsafe { VAR += 1 };
         }
         fn test_sys_u32(_: u32) {
-            println!("test_sys_u32(_: u32)");
+            unsafe { VAR += 1 };
         }
         fn test_sys_void_and_u32(_: (), _: u32) {
-            println!("test_sys_void_and_u32(_: (), _: u32)");
+            unsafe { VAR += 1 };
         }
         fn test_sys_tuples(_: ((), u32), _: (bool, bool)) {
-            println!("test_sys_tuples(_: ((), u32), _: (bool, bool))");
+            unsafe { VAR += 1 };
         }
 
         let mut ecs = World::default();
@@ -206,5 +237,33 @@ mod test {
         systems.add_system(test_sys_tuples);
 
         systems.run(&mut ecs);
+
+        assert_eq!(unsafe { VAR }, 4);
+    }
+
+    #[test]
+    fn systems_add_and_run_startup_systems() {
+        static mut VAR: u64 = 0;
+
+        fn test_sys() {
+            unsafe { VAR += 1 };
+        }
+
+        fn test_startup_sys() {
+            unsafe { VAR += 1 };
+        }
+
+        let mut ecs = World::default();
+
+        let mut systems = Systems::default();
+
+        systems.add_startup_system(test_startup_sys);
+        systems.add_system(test_sys);
+
+        systems.run(&mut ecs);
+        assert_eq!(unsafe { VAR }, 2);
+
+        systems.run(&mut ecs);
+        assert_eq!(unsafe { VAR }, 3);
     }
 }
