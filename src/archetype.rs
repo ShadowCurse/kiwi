@@ -7,7 +7,7 @@ use crate::component::Component;
 use crate::sparse_set::SparseSet;
 use crate::utils::TypeInfo;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ArchetypeError {
     #[error("Adding component dublicate to the archetype")]
     AddingComponentDuplicate,

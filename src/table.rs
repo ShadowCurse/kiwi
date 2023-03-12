@@ -12,7 +12,7 @@ use crate::{
     sparse_set::SparseSet,
 };
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum TableError {
     #[error("Table does not exist in the TableStorage")]
     TableDoesNotExist,

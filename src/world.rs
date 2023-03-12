@@ -6,7 +6,7 @@ use crate::entity::{Entity, EntityGenerator};
 use crate::resources::{Resource, ResourceError, Resources};
 use crate::table::{TableError, TableId, TableStorage};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum WorldError {
     #[error("Archetype error: {0}")]
     ArchetypeError(#[from] ArchetypeError),
@@ -171,8 +171,15 @@ impl World {
     }
 
     pub fn remove_resource<T: Resource>(&mut self) -> Result<(), WorldError> {
-        self.resources.remove::<T>()?;
-        Ok(())
+        self.resources.remove::<T>().map_err(WorldError::Resources)
+    }
+
+    pub fn get_resource<T: Resource>(&self) -> Result<&T, WorldError> {
+        self.resources.get::<T>().map_err(WorldError::Resources)
+    }
+
+    pub fn get_resource_mut<T: Resource>(&mut self) -> Result<&mut T, WorldError> {
+        self.resources.get_mut::<T>().map_err(WorldError::Resources)
     }
 
     pub fn query<'a, 'b, 'c, CT, const L: usize>(&'a self) -> impl Iterator<Item = CT> + '_
