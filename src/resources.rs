@@ -1,6 +1,11 @@
-use std::{any::TypeId, collections::HashMap};
+use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 
-use crate::{blobvec::BlobVec, utils::TypeInfo};
+use crate::{
+    blobvec::BlobVec,
+    system::{SystemParameter, SystemParameterFetch},
+    utils::TypeInfo,
+    world::{World, WorldError},
+};
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ResourceError {
@@ -11,6 +16,96 @@ pub enum ResourceError {
 }
 
 pub trait Resource: 'static {}
+
+pub struct Res<'world, T>
+where
+    T: Resource,
+{
+    world: &'world World,
+    phantom: PhantomData<T>,
+}
+
+impl<T> Res<'_, T>
+where
+    T: Resource,
+{
+    pub fn get(&self) -> Result<&T, WorldError> {
+        self.world.get_resource()
+    }
+}
+
+impl<'a, T> SystemParameter for Res<'a, T>
+where
+    T: Resource,
+{
+    type Fetch = ResFetch<T>;
+}
+
+pub struct ResFetch<T>
+where
+    T: Resource,
+{
+    phantom: PhantomData<T>,
+}
+
+impl<T> SystemParameterFetch for ResFetch<T>
+where
+    T: Resource,
+{
+    type Item<'a> = Res<'a, T>;
+
+    fn fetch(world: &mut World) -> Self::Item<'_> {
+        Self::Item {
+            world,
+            phantom: PhantomData,
+        }
+    }
+}
+
+pub struct ResMut<'world, T>
+where
+    T: Resource,
+{
+    world: &'world mut World,
+    phantom: PhantomData<T>,
+}
+
+impl<T> ResMut<'_, T>
+where
+    T: Resource,
+{
+    pub fn get_mut(&mut self) -> Result<&mut T, WorldError> {
+        self.world.get_resource_mut()
+    }
+}
+
+impl<'a, T> SystemParameter for ResMut<'a, T>
+where
+    T: Resource,
+{
+    type Fetch = ResMutFetch<T>;
+}
+
+pub struct ResMutFetch<T>
+where
+    T: Resource,
+{
+    phantom: PhantomData<T>,
+}
+
+impl<T> SystemParameterFetch for ResMutFetch<T>
+where
+    T: Resource,
+{
+    type Item<'a> = ResMut<'a, T>;
+
+    fn fetch(world: &mut World) -> Self::Item<'_> {
+        Self::Item {
+            world,
+            phantom: PhantomData,
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Resources {
@@ -68,7 +163,7 @@ impl Resources {
         }
     }
 
-    pub fn get_mut<T: Resource>(&mut self) -> Result<&T, ResourceError> {
+    pub fn get_mut<T: Resource>(&mut self) -> Result<&mut T, ResourceError> {
         let type_info = TypeInfo::new::<T>();
         match self.columns.get_mut(&type_info.id) {
             Some(column) => {
@@ -82,6 +177,8 @@ impl Resources {
 
 #[cfg(test)]
 mod test {
+    use crate::system::Systems;
+
     use super::*;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,5 +253,119 @@ mod test {
             resources.remove::<C>().unwrap_err(),
             ResourceError::RemoveNonExisting("kiwi::resources::test::C")
         );
+    }
+
+    #[test]
+    fn res_system_param() {
+        fn test_sys_res(_: Res<A>) {
+            println!("test_sys_res(_: Res<A>)");
+        }
+
+        let mut ecs = World::default();
+
+        let mut systems = Systems::default();
+
+        systems.add_system(test_sys_res);
+
+        systems.run(&mut ecs);
+    }
+
+    #[test]
+    fn res_mut_system_param() {
+        fn test_sys_res_mut(_: ResMut<A>) {
+            println!("test_sys_res_mut(_: ResMut<A>)");
+        }
+
+        let mut ecs = World::default();
+
+        let mut systems = Systems::default();
+
+        systems.add_system(test_sys_res_mut);
+
+        systems.run(&mut ecs);
+    }
+
+    #[test]
+    fn res_in_ecs() {
+        let mut ecs = World::default();
+
+        let a = A { val: 1 };
+        ecs.add_resource(a);
+
+        let b = B { val: 2 };
+        ecs.add_resource(b);
+
+        fn get_a(res: Res<A>) {
+            let a = res.get().unwrap();
+            assert_eq!(a.val, 1);
+        }
+
+        fn get_b(res: Res<B>) {
+            let b = res.get().unwrap();
+            assert_eq!(b.val, 2);
+        }
+
+        fn get_c(res: Res<C>) {
+            assert_eq!(
+                res.get().unwrap_err(),
+                WorldError::Resources(ResourceError::GetNonExisting("kiwi::resources::test::C"))
+            );
+        }
+
+        let mut systems = Systems::default();
+
+        systems.add_system(get_a);
+        systems.add_system(get_b);
+        systems.add_system(get_c);
+
+        systems.run(&mut ecs);
+    }
+
+    #[test]
+    fn res_mut_in_ecs() {
+        let mut ecs = World::default();
+
+        let a = A { val: 1 };
+        ecs.add_resource(a);
+
+        let b = B { val: 2 };
+        ecs.add_resource(b);
+
+        fn mutate_a(mut res: ResMut<A>) {
+            let a = res.get_mut().unwrap();
+            a.val = 11;
+        }
+
+        fn mutate_b(mut res: ResMut<B>) {
+            let b = res.get_mut().unwrap();
+            b.val = 22;
+        }
+
+        fn mutate_c(mut res: ResMut<C>) {
+            assert_eq!(
+                res.get_mut().unwrap_err(),
+                WorldError::Resources(ResourceError::GetNonExisting("kiwi::resources::test::C"))
+            );
+        }
+
+        fn validate_a(res: Res<A>) {
+            let a = res.get().unwrap();
+            assert_eq!(a.val, 11);
+        }
+
+        fn validate_b(res: Res<B>) {
+            let b = res.get().unwrap();
+            assert_eq!(b.val, 22);
+        }
+
+        let mut systems = Systems::default();
+
+        systems.add_system(mutate_a);
+        systems.add_system(mutate_b);
+        systems.add_system(mutate_c);
+        systems.add_system(validate_a);
+        systems.add_system(validate_b);
+
+        systems.run(&mut ecs);
     }
 }
