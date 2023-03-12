@@ -1,4 +1,4 @@
-use std::{alloc::Layout, any::TypeId};
+use std::any::TypeId;
 
 use crate::{count_tts, tuple_from_array, utils::static_sort};
 
@@ -56,27 +56,27 @@ impl_component!(i128);
 impl_component!(f32);
 impl_component!(f64);
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub struct ComponentInfo {
-    pub id: TypeId,
-    pub layout: Layout,
-    pub drop: Option<fn(*mut ())>,
-}
-
-impl ComponentInfo {
-    pub const fn new<T: Component>() -> Self {
-        let drop = if std::mem::needs_drop::<T>() {
-            Some(unsafe { std::mem::transmute(&<T as Component>::component_drop) })
-        } else {
-            None
-        };
-        Self {
-            id: TypeId::of::<T>(),
-            layout: Layout::new::<T>(),
-            drop,
-        }
-    }
-}
+// #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+// pub struct ComponentInfo {
+//     pub id: TypeId,
+//     pub layout: Layout,
+//     pub drop: Option<fn(*mut ())>,
+// }
+//
+// impl ComponentInfo {
+//     pub const fn new<T: Component>() -> Self {
+//         let drop = if std::mem::needs_drop::<T>() {
+//             Some(unsafe { std::mem::transmute(&<T as Component>::component_drop) })
+//         } else {
+//             None
+//         };
+//         Self {
+//             id: TypeId::of::<T>(),
+//             layout: Layout::new::<T>(),
+//             drop,
+//         }
+//     }
+// }
 
 pub trait FlattenTuple {
     type Flatten;

@@ -3,8 +3,9 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 
-use crate::component::{Component, ComponentInfo};
+use crate::component::Component;
 use crate::sparse_set::SparseSet;
+use crate::utils::TypeInfo;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArchetypeError {
@@ -48,7 +49,7 @@ impl<'a> From<&'a [TypeId]> for Archetype<'a> {
 
 #[derive(Debug, Default, Clone)]
 pub struct ArchetypeInfo {
-    components: HashSet<ComponentInfo>,
+    components: HashSet<TypeInfo>,
 }
 
 impl ArchetypeInfo {
@@ -67,7 +68,7 @@ impl ArchetypeInfo {
     }
 
     pub fn add_component<T: Component>(&mut self) -> Result<(), ArchetypeError> {
-        let component_info = ComponentInfo::new::<T>();
+        let component_info = TypeInfo::new::<T>();
         match self.components.insert(component_info) {
             true => Ok(()),
             false => Err(ArchetypeError::AddingComponentDuplicate),
@@ -75,19 +76,19 @@ impl ArchetypeInfo {
     }
 
     pub fn has_component<T: Component>(&self) -> bool {
-        let component_info = ComponentInfo::new::<T>();
+        let component_info = TypeInfo::new::<T>();
         self.components.contains(&component_info)
     }
 
     pub fn remove_component<T: Component>(&mut self) -> Result<(), ArchetypeError> {
-        let component_info = ComponentInfo::new::<T>();
+        let component_info = TypeInfo::new::<T>();
         match self.components.remove(&component_info) {
             true => Ok(()),
             false => Err(ArchetypeError::RemovingNonExistingComponent),
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &ComponentInfo> {
+    pub fn iter(&self) -> impl Iterator<Item = &TypeInfo> {
         self.components.iter()
     }
 
