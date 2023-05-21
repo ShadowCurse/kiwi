@@ -104,6 +104,37 @@ impl<C1, C2, C3, C4, C5> FlattenTuple for (C1, (C2, (C3, (C4, (C5,))))) {
     }
 }
 
+impl<C1, C2, C3, C4, C5, C6> FlattenTuple for (C1, (C2, (C3, (C4, (C5, (C6,)))))) {
+    type Flatten = (C1, C2, C3, C4, C5, C6);
+
+    fn flatten(self) -> Self::Flatten {
+        (
+            self.0,
+            self.1 .0,
+            self.1 .1 .0,
+            self.1 .1 .1 .0,
+            self.1 .1 .1 .1 .0,
+            self.1 .1 .1 .1 .1 .0,
+        )
+    }
+}
+
+impl<C1, C2, C3, C4, C5, C6, C7> FlattenTuple for (C1, (C2, (C3, (C4, (C5, (C6, (C7,))))))) {
+    type Flatten = (C1, C2, C3, C4, C5, C6, C7);
+
+    fn flatten(self) -> Self::Flatten {
+        (
+            self.0,
+            self.1 .0,
+            self.1 .1 .0,
+            self.1 .1 .1 .0,
+            self.1 .1 .1 .1 .0,
+            self.1 .1 .1 .1 .1 .0,
+            self.1 .1 .1 .1 .1 .1 .0,
+        )
+    }
+}
+
 pub trait ComponentTuple<const L: usize> {
     const IDS: [TypeId; L];
 

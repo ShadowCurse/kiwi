@@ -142,6 +142,8 @@ impl_system_param_func!(P1, P2);
 impl_system_param_func!(P1, P2, P3);
 impl_system_param_func!(P1, P2, P3, P4);
 impl_system_param_func!(P1, P2, P3, P4, P5);
+impl_system_param_func!(P1, P2, P3, P4, P5, P6);
+impl_system_param_func!(P1, P2, P3, P4, P5, P6, P7);
 
 macro_rules! impl_system_param_tuple {
     ($($t:ident),*) => {
@@ -184,6 +186,8 @@ impl_system_param_tuple!(P1, P2);
 impl_system_param_tuple!(P1, P2, P3);
 impl_system_param_tuple!(P1, P2, P3, P4);
 impl_system_param_tuple!(P1, P2, P3, P4, P5);
+impl_system_param_tuple!(P1, P2, P3, P4, P5, P6);
+impl_system_param_tuple!(P1, P2, P3, P4, P5, P6, P7);
 
 #[cfg(test)]
 mod test {
