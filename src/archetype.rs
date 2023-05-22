@@ -5,7 +5,7 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::component::Component;
 use crate::sparse_set::SparseSet;
-use crate::utils::TypeInfo;
+use crate::utils::type_traits::TypeInfo;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
@@ -145,11 +145,7 @@ pub struct ArchetypesTrie {
 }
 
 impl ArchetypesTrie {
-    pub fn insert(
-        &mut self,
-        archetype: Archetype,
-        archetype_id: ArchetypeId,
-    ) -> Result<(), Error> {
+    pub fn insert(&mut self, archetype: Archetype, archetype_id: ArchetypeId) -> Result<(), Error> {
         if archetype.is_empty() {
             self.empty_id = Some(archetype_id);
             Ok(())

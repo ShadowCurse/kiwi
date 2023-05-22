@@ -3,7 +3,8 @@ use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 use crate::{
     blobvec::BlobVec,
     system::{SystemParameter, SystemParameterFetch},
-    utils::TypeInfo, world::World,
+    utils::type_traits::TypeInfo,
+    world::World,
 };
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
