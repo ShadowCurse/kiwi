@@ -18,7 +18,7 @@ impl<'ecs, T, const L: usize> Query<'ecs, T, L>
 where
     T: ComponentTuple<L> + 'ecs,
 {
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = T> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
         self.world.query::<T, L>()
     }
 }

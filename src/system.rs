@@ -154,9 +154,9 @@ macro_rules! impl_system_param_tuple {
                 $($t::Item<'a>),*,
             );
 
-            fn fetch<'ecs>(ecs: &'ecs mut World) -> Self::Item<'ecs> {
+            fn fetch(ecs: &mut World) -> Self::Item<'_> {
                 (
-                    $($t::fetch(unsafe { std::mem::transmute(ecs as *mut World) })),*
+                    $($t::fetch(unsafe {  &mut *(ecs as *mut World) })),*
                     ,
                 )
             }

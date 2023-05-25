@@ -87,6 +87,8 @@ impl TableStorage {
         Ok(())
     }
 
+    /// # Safety
+    /// This is safe as long as table ids are different
     pub unsafe fn transfer_line_with_deletion<T: Component>(
         &mut self,
         from: TableId,
