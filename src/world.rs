@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 use crate::archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
 use crate::component::{Component, ComponentTuple};
 use crate::entity::{Entity, EntityGenerator};
+use crate::events::Events;
 use crate::resources::{Resource, Resources};
 use crate::system::{SystemParameter, SystemParameterFetch};
 use crate::table::{TableId, TableStorage};
@@ -182,6 +183,10 @@ impl World {
 
     pub fn get_resource_mut<T: Resource>(&mut self) -> Result<&mut T, Error> {
         self.resources.get_mut::<T>().map_err(Error::Resources)
+    }
+
+    pub fn add_event<T: 'static>(&mut self) {
+        self.resources.add(Events::<T>::default())
     }
 
     pub fn query<'a, 'b, 'c, CT, const L: usize>(&'a self) -> impl Iterator<Item = CT> + '_

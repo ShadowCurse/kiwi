@@ -8,6 +8,7 @@ pub mod archetype;
 pub mod blobvec;
 pub mod component;
 pub mod entity;
+pub mod events;
 pub mod query;
 pub mod resources;
 pub mod sparse_set;
