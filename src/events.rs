@@ -1,14 +1,14 @@
 use std::marker::PhantomData;
 
 use crate::{
-    resources::Resource,
+    resources::{ResMut, Resource},
     system::{SystemParameter, SystemParameterFetch},
     world::World,
 };
 
 #[derive(Debug, Clone)]
 pub struct Events<T: 'static> {
-    events: Vec<T>,
+    pub events: Vec<T>,
 }
 
 impl<T: 'static> Default for Events<T> {
@@ -26,6 +26,14 @@ pub struct EventReader<'a, T: 'static> {
 impl<'a, T: 'static> EventReader<'a, T> {
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.events.events.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.events.events.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.events.events.len()
     }
 }
 
@@ -57,6 +65,14 @@ impl<'a, T: 'static> EventWriter<'a, T> {
     pub fn send(&mut self, event: T) {
         self.events.events.push(event);
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.events.events.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.events.events.len()
+    }
 }
 
 impl<'a, T: 'static> SystemParameter for EventWriter<'a, T> {
@@ -77,6 +93,14 @@ impl<T: 'static> SystemParameterFetch for EventWriterFetch<T> {
                 .expect("couldn't find event type"),
         }
     }
+}
+
+pub fn clear_events<T: 'static>(mut events: ResMut<Events<T>>) {
+    events
+        .get_mut()
+        .expect("couldn't find event type")
+        .events
+        .clear();
 }
 
 #[cfg(test)]
