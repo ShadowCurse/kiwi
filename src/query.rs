@@ -1,14 +1,14 @@
 use std::marker::PhantomData;
 
 use crate::{
-    component::ComponentTuple,
+    component::{ComponentTuple, ComponentTupleWithEntity},
     system::{SystemParameter, SystemParameterFetch},
     world::World,
 };
 
 pub struct Query<'world, T, const L: usize>
 where
-    T: ComponentTuple<L> + 'static,
+    T: 'static,
 {
     world: &'world World,
     phantom: PhantomData<T>,
@@ -23,23 +23,32 @@ where
     }
 }
 
+impl<'ecs, T, const L: usize> Query<'ecs, T, L>
+where
+    T: ComponentTupleWithEntity<L> + 'ecs,
+{
+    pub fn iter_with_entity(&self) -> impl Iterator<Item = T> + '_ {
+        self.world.query_with_entity::<T, L>()
+    }
+}
+
 impl<'a, T, const L: usize> SystemParameter for Query<'a, T, L>
 where
-    T: ComponentTuple<L>,
+    T: 'static,
 {
     type Fetch = QueryFetch<T, L>;
 }
 
 pub struct QueryFetch<T, const L: usize>
 where
-    T: ComponentTuple<L>,
+    T: 'static,
 {
     phantom: PhantomData<T>,
 }
 
 impl<T, const L: usize> SystemParameterFetch for QueryFetch<T, L>
 where
-    T: ComponentTuple<L> + 'static,
+    T: 'static,
 {
     type Item<'a> = Query<'a, T, L>;
 
@@ -53,14 +62,33 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::system::Systems;
+    use crate::{system::Systems, entity::Entity};
 
     use super::*;
 
     #[test]
     fn query_system_param() {
-        fn test_sys_query(_: Query<(&u8, &bool), 2>) {
-            println!("test_sys(_: Query::<(&u8, &bool)>)");
+        fn test_sys_query(q: Query<(&u8, &bool), 2>) {
+            let _ = q.iter();
+        }
+
+        let mut ecs = World::default();
+
+        let mut systems = Systems::default();
+
+        systems.add_system(test_sys_query);
+
+        systems.run(&mut ecs);
+    }
+
+    #[test]
+    fn query_with_entity_system_param() {
+        fn test_sys_query_2(q: Query<(Entity, &u8, &bool), 2>) {
+            // let _ = q.iter_with_entity();
+        }
+
+        fn test_sys_query(q: Query<(Entity, (&u8, &bool)), 2>) {
+            let _ = q.iter_with_entity();
         }
 
         let mut ecs = World::default();

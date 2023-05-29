@@ -1,13 +1,13 @@
 use std::{
     any::TypeId,
-    collections::{hash_map::Values, HashMap, HashSet, VecDeque},
+    collections::{hash_map::{Values, Iter}, HashMap, HashSet, VecDeque},
     marker::PhantomData,
 };
 
 use crate::{
     archetype::ArchetypeInfo,
     blobvec::BlobVec,
-    component::{Component, ComponentTuple},
+    component::{Component, ComponentTuple, ComponentTupleWithEntity},
     entity::Entity,
     sparse_set::SparseSet,
 };
@@ -122,6 +122,22 @@ impl TableStorage {
         }
     }
 
+    pub fn query_with_entity<I, CT, const L: usize>(
+        &self,
+        table_id_iter: I,
+    ) -> TableStorageIteratorWithEntity<'_, I, CT, L>
+    where
+        I: Iterator<Item = TableId>,
+        CT: ComponentTupleWithEntity<L>,
+    {
+        TableStorageIteratorWithEntity {
+            storage: self,
+            table_id_iter,
+            component_iter: None,
+            phantom: PhantomData,
+        }
+    }
+
     fn get_table(&self, table_id: TableId) -> Option<&Table> {
         self.tables.get(table_id.0)
     }
@@ -158,6 +174,45 @@ where
                 Some(table_id) => {
                     let table = self.storage.get_table(table_id).unwrap();
                     self.component_iter = Some(table.component_iter::<CT, L>());
+                    self.next()
+                }
+                None => None,
+            },
+        }
+    }
+}
+
+pub struct TableStorageIteratorWithEntity<'a, I, CT, const L: usize>
+where
+    I: Iterator<Item = TableId>,
+    CT: ComponentTupleWithEntity<L>,
+{
+    storage: &'a TableStorage,
+    table_id_iter: I,
+    component_iter: Option<TableIteratorWithEntity<'a, L>>,
+    phantom: PhantomData<CT>,
+}
+
+impl<'a, I, CT, const L: usize> Iterator for TableStorageIteratorWithEntity<'a, I, CT, L>
+where
+    I: Iterator<Item = TableId>,
+    CT: ComponentTupleWithEntity<L>,
+{
+    type Item = <TableIteratorWithEntity<'a, L> as Iterator>::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.component_iter {
+            Some(ref mut component_iter) => match component_iter.next() {
+                Some(component) => Some(component),
+                None => {
+                    self.component_iter = None;
+                    self.next()
+                }
+            },
+            None => match self.table_id_iter.next() {
+                Some(table_id) => {
+                    let table = self.storage.get_table(table_id).unwrap();
+                    self.component_iter = Some(table.component_iter_with_entity::<CT, L>());
                     self.next()
                 }
                 None => None,
@@ -315,6 +370,17 @@ impl Table {
             entities: self.entities.values(),
         }
     }
+
+    pub fn component_iter_with_entity<CT, const L: usize>(&self) -> TableIteratorWithEntity<'_, L>
+    where
+        CT: ComponentTupleWithEntity<L>,
+    {
+        let columns = CT::ids().map(|id| &self.columns[&id]);
+        TableIteratorWithEntity {
+            columns,
+            entities: self.entities.iter(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -333,6 +399,27 @@ impl<'a, const L: usize> Iterator for TableIterator<'a, L> {
                      // # Safety
                      // Line is valid index
                      unsafe { column.get_erased_ptr_mut(*line) })
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct TableIteratorWithEntity<'a, const L: usize> {
+    columns: [&'a BlobVec; L],
+    entities: Iter<'a, Entity, usize>,
+}
+
+impl<'a, const L: usize> Iterator for TableIteratorWithEntity<'a, L> {
+    type Item = (Entity, [*mut (); L]);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.entities.next().map(|(entity, line)| {
+            (*entity,
+            self.columns
+                .map(|column| 
+                     // # Safety
+                     // Line is valid index
+                     unsafe { column.get_erased_ptr_mut(*line) }))
         })
     }
 }

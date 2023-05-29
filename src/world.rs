@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
 use crate::archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
-use crate::component::{Component, ComponentTuple};
+use crate::component::{Component, ComponentTuple, ComponentTupleWithEntity};
 use crate::entity::{Entity, EntityGenerator};
 use crate::events::Events;
 use crate::resources::{Resource, Resources};
@@ -203,6 +203,24 @@ impl World {
         self.storage
             .query::<_, CT, L>(table_id_iter)
             .map(|array| unsafe { CT::from_erased_mut_ptr_array(array) })
+    }
+
+    pub fn query_with_entity<'a, 'b, 'c, CT, const L: usize>(
+        &'a self,
+    ) -> impl Iterator<Item = CT> + '_
+    where
+        'c: 'a,
+        'b: 'c,
+        CT: ComponentTupleWithEntity<L> + 'a,
+    {
+        let table_id_iter = self
+            .archetypes
+            .query_ids(CT::ids_ref())
+            .map(|arch_id| self.archetype_to_table[&arch_id]);
+
+        self.storage
+            .query_with_entity::<_, CT, L>(table_id_iter)
+            .map(|array| unsafe { CT::from_erased_mut_ptr_array_with_entity(array) })
     }
 }
 
