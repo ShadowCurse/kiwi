@@ -185,6 +185,12 @@ impl World {
         self.resources.get_mut::<T>().map_err(Error::Resources)
     }
 
+    /// # Safety
+    /// Save as long as same resource is accessed only once
+    pub unsafe fn get_resource_mut_unchecked<T: Resource>(&self) -> Result<&mut T, Error> {
+        self.resources.get_mut_unchecked::<T>().map_err(Error::Resources)
+    }
+
     pub fn add_event<T: 'static>(&mut self) {
         self.resources.add(Events::<T>::default())
     }

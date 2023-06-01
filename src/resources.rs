@@ -173,6 +173,19 @@ impl Resources {
             None => Err(Error::GetNonExisting(type_info.name)),
         }
     }
+
+    /// # Safety
+    /// Save as long as same resource is accessed only once
+    pub unsafe fn get_mut_unchecked<T: Resource>(&self) -> Result<&mut T, Error> {
+        let type_info = TypeInfo::new::<T>();
+        match self.columns.get(&type_info.id) {
+            Some(column) => {
+                // Safe because column contains a corret type
+                Ok(unsafe { column.get_mut_unchecked::<T>(0) })
+            }
+            None => Err(Error::GetNonExisting(type_info.name)),
+        }
+    }
 }
 
 #[cfg(test)]

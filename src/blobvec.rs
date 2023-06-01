@@ -1,3 +1,5 @@
+#![allow(mutable_transmutes)]
+
 use std::alloc::Layout;
 
 #[derive(Debug)]
@@ -110,6 +112,16 @@ impl BlobVec {
     pub unsafe fn get_mut<T>(&mut self, index: usize) -> &mut T {
         let data_index = index * self.layout.size();
         std::mem::transmute(&mut self.data[data_index])
+    }
+
+    /// Get a mutable reference to the object at `index`
+    ///
+    /// # Safety
+    /// - The index should be in range 0 to blobvec.len()
+    #[inline]
+    pub unsafe fn get_mut_unchecked<T>(&self, index: usize) -> &mut T {
+        let data_index = index * self.layout.size();
+        std::mem::transmute(&self.data[data_index])
     }
 
     /// Get a reference to the object at `index`
