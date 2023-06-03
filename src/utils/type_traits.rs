@@ -1,4 +1,4 @@
-use std::{any::TypeId, alloc::Layout};
+use std::{alloc::Layout, any::TypeId};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct TypeInfo {
@@ -33,4 +33,3 @@ pub trait TypeDrop: Sized {
 }
 
 impl<T> TypeDrop for T {}
-

@@ -25,3 +25,10 @@ macro_rules! tuple_from_array {
             )
     };
 }
+
+#[macro_export]
+macro_rules! static_assert {
+    ($exp:expr) => {
+        const __ASSERT: [0; 0 - !{$exp as usize}] = [];
+    };
+}
