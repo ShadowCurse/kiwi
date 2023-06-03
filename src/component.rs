@@ -1,6 +1,7 @@
 use std::any::TypeId;
 
 use crate::{
+    blobvec::BlobVec,
     count_tts,
     entity::Entity,
     tuple_from_array,
@@ -57,7 +58,7 @@ impl_component!(i128);
 impl_component!(f32);
 impl_component!(f64);
 
-pub trait ComponentTuple<const L: usize>: Sized {
+pub trait ComponentTuple<const L: usize>: Sized + 'static {
     const IDS: [TypeId; L];
 
     fn ids() -> [TypeId; L] {
@@ -68,25 +69,7 @@ pub trait ComponentTuple<const L: usize>: Sized {
         &Self::IDS
     }
 
-    /// # Safety
-    /// Pointers in the array should be of the correct types
-    unsafe fn from_erased_mut_ptr_array(_array: [*mut (); L]) -> Self;
-}
-
-pub trait ComponentTupleWithEntity<const L: usize>: Sized {
-    const IDS: [TypeId; L];
-
-    fn ids() -> [TypeId; L] {
-        Self::IDS
-    }
-
-    fn ids_ref() -> &'static [TypeId] {
-        &Self::IDS
-    }
-
-    /// # Safety
-    /// Pointers in the array should be of the correct types
-    unsafe fn from_erased_mut_ptr_array_with_entity(_: (Entity, [*mut (); L])) -> Self;
+    fn fetch(entity: Entity, columns: &[&BlobVec; L], line: usize) -> Self;
 }
 
 macro_rules! impl_component_tuple {
@@ -117,8 +100,17 @@ macro_rules! impl_component_tuple {
                ids_type_id
             };
 
-            unsafe fn from_erased_mut_ptr_array(array: [*mut (); count_tts!($($t)*)]) -> Self {
-                const L:usize = count_tts!($($t)*);
+            // unsafe fn from_erased_mut_ptr_array(array: [*mut (); count_tts!($($t)*)]) -> Self {
+            //     const L:usize = count_tts!($($t)*);
+            //     tuple_from_array!(L, array, $($t,)*).flatten()
+            // }
+            fn fetch(entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
+                const L: usize = count_tts!($($t)*);
+                let array = columns
+                .map(|column|
+                     // # Safety
+                     // Line is valid index
+                     unsafe { column.get_erased_ptr_mut(line) });
                 tuple_from_array!(L, array, $($t,)*).flatten()
             }
         }
@@ -133,7 +125,7 @@ impl_component_tuple!(C1, C2, C3, C4, C5);
 
 macro_rules! impl_component_tuple_with_entity {
     ($($t:ident),*) => {
-        impl<$($t),*> ComponentTupleWithEntity<{count_tts!($($t)*)}> for (Entity, ($($t,)*))
+        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for (Entity, ($($t,)*))
         where
             $($t: 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
@@ -159,8 +151,23 @@ macro_rules! impl_component_tuple_with_entity {
                ids_type_id
             };
 
-            unsafe fn from_erased_mut_ptr_array_with_entity((entity, array): (Entity, [*mut (); count_tts!($($t)*)])) -> Self {
-                const L:usize = count_tts!($($t)*);
+            // unsafe fn from_erased_mut_ptr_array_with_entity((entity, array): (Entity, [*mut (); count_tts!($($t)*)])) -> Self {
+            //     const L:usize = count_tts!($($t)*);
+            //     (entity, tuple_from_array!(L, array, $($t,)*).flatten())
+            // }
+
+            // unsafe fn from_erased_mut_ptr_array(array: [*mut (); count_tts!($($t)*)]) -> Self {
+            //     const L:usize = count_tts!($($t)*);
+            //     tuple_from_array!(L, array, $($t,)*).flatten()
+            // }
+
+            fn fetch(entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
+                const L: usize = count_tts!($($t)*);
+                let array = columns
+                .map(|column|
+                     // # Safety
+                     // Line is valid index
+                     unsafe { column.get_erased_ptr_mut(line) });
                 (entity, tuple_from_array!(L, array, $($t,)*).flatten())
             }
         }
@@ -198,24 +205,24 @@ mod test {
         assert_eq!(<(&mut i32, &mut bool, &mut u8)>::ids(), expected);
     }
 
-    #[test]
-    fn components_convert() {
-        let a = 1;
-        let b = 1.1;
-        let c = false;
-
-        let array: [*mut (); 3] = [
-            &a as *const i32 as *mut (),
-            &b as *const f64 as *mut (),
-            &c as *const bool as *mut (),
-        ];
-        let q = unsafe {
-            <(&mut i32, &mut f64, &mut bool) as ComponentTuple<3>>::from_erased_mut_ptr_array(array)
-        };
-        *q.0 += 1;
-        *q.2 = true;
-        assert_eq!(*q.0, 2);
-        assert_eq!(*q.1, 1.1);
-        assert!(*q.2);
-    }
+    // #[test]
+    // fn components_convert() {
+    //     let a = 1;
+    //     let b = 1.1;
+    //     let c = false;
+    //
+    //     let array: [*mut (); 3] = [
+    //         &a as *const i32 as *mut (),
+    //         &b as *const f64 as *mut (),
+    //         &c as *const bool as *mut (),
+    //     ];
+    //     let q = unsafe {
+    //         <(&mut i32, &mut f64, &mut bool) as ComponentTuple<3>>::from_erased_mut_ptr_array(array)
+    //     };
+    //     *q.0 += 1;
+    //     *q.2 = true;
+    //     assert_eq!(*q.0, 2);
+    //     assert_eq!(*q.1, 1.1);
+    //     assert!(*q.2);
+    // }
 }
