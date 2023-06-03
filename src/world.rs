@@ -205,7 +205,7 @@ impl World {
     {
         let table_id_iter = self
             .archetypes
-            .query_ids(CT::ids_ref())
+            .query_ids(&CT::SORTED_IDS)
             .map(|arch_id| self.archetype_to_table[&arch_id]);
 
         self.storage.query::<_, CT, L>(table_id_iter)

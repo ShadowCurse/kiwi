@@ -74,7 +74,7 @@ mod test {
 
     #[test]
     fn query_with_entity_system_param() {
-        fn test_sys_query(q: Query<(Entity, (&u8, &bool)), 2>) {
+        fn test_sys_query(q: Query<(Entity, &u8, &bool), 2>) {
             let _ = q.iter();
         }
 

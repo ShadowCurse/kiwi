@@ -1,17 +1,11 @@
 use std::any::TypeId;
 
-use crate::{
-    blobvec::BlobVec,
-    count_tts,
-    entity::Entity,
-    tuple_from_array,
-    utils::{flat_tuple::FlattenTuple, static_sort},
-};
+use crate::{blobvec::BlobVec, count_tts, entity::Entity, utils::static_sort};
 
 trait ComponentRef {
     type Component: Component;
 
-    fn from_raw_ptr(raw: *mut ()) -> Self;
+    fn fetch(blob: &BlobVec, line: usize) -> Self;
 }
 
 impl<T> ComponentRef for &T
@@ -20,8 +14,8 @@ where
 {
     type Component = T;
 
-    fn from_raw_ptr(r: *mut ()) -> Self {
-        unsafe { &*(r as *const T) }
+    fn fetch(blob: &BlobVec, line: usize) -> Self {
+        unsafe { &*blob.get_ptr::<T>(line) }
     }
 }
 
@@ -31,8 +25,8 @@ where
 {
     type Component = T;
 
-    fn from_raw_ptr(r: *mut ()) -> Self {
-        unsafe { &mut *(r as *mut T) }
+    fn fetch(blob: &BlobVec, line: usize) -> Self {
+        unsafe { &mut *blob.get_ptr_mut(line) }
     }
 }
 
@@ -60,14 +54,7 @@ impl_component!(f64);
 
 pub trait ComponentTuple<const L: usize>: Sized + 'static {
     const IDS: [TypeId; L];
-
-    fn ids() -> [TypeId; L] {
-        Self::IDS
-    }
-
-    fn ids_ref() -> &'static [TypeId] {
-        &Self::IDS
-    }
+    const SORTED_IDS: [TypeId; L];
 
     fn fetch(entity: Entity, columns: &[&BlobVec; L], line: usize) -> Self;
 }
@@ -78,10 +65,16 @@ macro_rules! impl_component_tuple {
         where
             $($t: 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
+            const IDS: [TypeId; count_tts!($($t)*)] = [
+                $(
+                    TypeId::of::<<$t as ComponentRef>::Component>()
+                ),*
+            ];
+
             // TODO
             // Currently we transform TypeId to u64, but this is wrond
             // Wait untill TypId can be compared in compile time and change this mess
-            const IDS: [TypeId; count_tts!($($t)*)] = {
+            const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
                 let ids_u64: [u64; count_tts!($($t)*)] = [
                     $(
                         unsafe {
@@ -100,18 +93,17 @@ macro_rules! impl_component_tuple {
                ids_type_id
             };
 
-            // unsafe fn from_erased_mut_ptr_array(array: [*mut (); count_tts!($($t)*)]) -> Self {
-            //     const L:usize = count_tts!($($t)*);
-            //     tuple_from_array!(L, array, $($t,)*).flatten()
-            // }
-            fn fetch(entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
-                const L: usize = count_tts!($($t)*);
-                let array = columns
-                .map(|column|
-                     // # Safety
-                     // Line is valid index
-                     unsafe { column.get_erased_ptr_mut(line) });
-                tuple_from_array!(L, array, $($t,)*).flatten()
+            fn fetch(_entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
+                let mut _index = 0;
+                (
+                    $(
+                        {
+                            let a = $t::fetch(columns[_index], line);
+                            _index += 1;
+                            a
+                        }
+                    ),*,
+                )
             }
         }
     };
@@ -125,14 +117,20 @@ impl_component_tuple!(C1, C2, C3, C4, C5);
 
 macro_rules! impl_component_tuple_with_entity {
     ($($t:ident),*) => {
-        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for (Entity, ($($t,)*))
+        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for (Entity, $($t,)*)
         where
             $($t: 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
+            const IDS: [TypeId; count_tts!($($t)*)] = [
+                $(
+                    TypeId::of::<<$t as ComponentRef>::Component>()
+                ),*
+            ];
+
             // TODO
             // Currently we transform TypeId to u64, but this is wrond
             // Wait untill TypId can be compared in compile time and change this mess
-            const IDS: [TypeId; count_tts!($($t)*)] = {
+            const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
                 let ids_u64: [u64; count_tts!($($t)*)] = [
                     $(
                         unsafe {
@@ -151,24 +149,18 @@ macro_rules! impl_component_tuple_with_entity {
                ids_type_id
             };
 
-            // unsafe fn from_erased_mut_ptr_array_with_entity((entity, array): (Entity, [*mut (); count_tts!($($t)*)])) -> Self {
-            //     const L:usize = count_tts!($($t)*);
-            //     (entity, tuple_from_array!(L, array, $($t,)*).flatten())
-            // }
-
-            // unsafe fn from_erased_mut_ptr_array(array: [*mut (); count_tts!($($t)*)]) -> Self {
-            //     const L:usize = count_tts!($($t)*);
-            //     tuple_from_array!(L, array, $($t,)*).flatten()
-            // }
-
             fn fetch(entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
-                const L: usize = count_tts!($($t)*);
-                let array = columns
-                .map(|column|
-                     // # Safety
-                     // Line is valid index
-                     unsafe { column.get_erased_ptr_mut(line) });
-                (entity, tuple_from_array!(L, array, $($t,)*).flatten())
+                let mut _index = 0;
+                (
+                    entity,
+                    $(
+                        {
+                            let a = $t::fetch(columns[_index], line);
+                            _index += 1;
+                            a
+                        }
+                    ),*,
+                )
             }
         }
     };
@@ -194,35 +186,14 @@ mod test {
             TypeId::of::<i32>(),
         ];
         expected.sort_unstable();
-        assert_eq!(<(&u8, &bool, &i32)>::ids(), expected);
-        assert_eq!(<(&bool, &u8, &i32)>::ids(), expected);
-        assert_eq!(<(&i32, &bool, &u8)>::ids(), expected);
+        assert_eq!(<(&u8, &bool, &i32)>::SORTED_IDS, expected);
+        assert_eq!(<(&bool, &u8, &i32)>::SORTED_IDS, expected);
+        assert_eq!(<(&i32, &bool, &u8)>::SORTED_IDS, expected);
 
-        assert_eq!(<(&mut u8, &bool, &i32)>::ids(), expected);
-        assert_eq!(<(&bool, &mut u8, &i32)>::ids(), expected);
-        assert_eq!(<(&i32, &bool, &mut u8)>::ids(), expected);
+        assert_eq!(<(&mut u8, &bool, &i32)>::SORTED_IDS, expected);
+        assert_eq!(<(&bool, &mut u8, &i32)>::SORTED_IDS, expected);
+        assert_eq!(<(&i32, &bool, &mut u8)>::SORTED_IDS, expected);
 
-        assert_eq!(<(&mut i32, &mut bool, &mut u8)>::ids(), expected);
+        assert_eq!(<(&mut i32, &mut bool, &mut u8)>::SORTED_IDS, expected);
     }
-
-    // #[test]
-    // fn components_convert() {
-    //     let a = 1;
-    //     let b = 1.1;
-    //     let c = false;
-    //
-    //     let array: [*mut (); 3] = [
-    //         &a as *const i32 as *mut (),
-    //         &b as *const f64 as *mut (),
-    //         &c as *const bool as *mut (),
-    //     ];
-    //     let q = unsafe {
-    //         <(&mut i32, &mut f64, &mut bool) as ComponentTuple<3>>::from_erased_mut_ptr_array(array)
-    //     };
-    //     *q.0 += 1;
-    //     *q.2 = true;
-    //     assert_eq!(*q.0, 2);
-    //     assert_eq!(*q.1, 1.1);
-    //     assert!(*q.2);
-    // }
 }

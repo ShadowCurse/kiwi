@@ -307,7 +307,7 @@ impl Table {
     where
         CT: ComponentTuple<L>,
     {
-        let columns = CT::ids().map(|id| &self.columns[&id]);
+        let columns = CT::IDS.map(|id| &self.columns[&id]);
         TableIterator {
             columns,
             entities: self.entities.iter(),

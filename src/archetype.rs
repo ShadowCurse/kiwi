@@ -499,14 +499,14 @@ mod test {
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
         let ids = trie
-            .query_ids(<(&B, &C)>::ids_ref())
+            .query_ids(&<(&B, &C)>::SORTED_IDS)
             .collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())
         );
 
-        let ids = trie.query_ids(<(&A,)>::ids_ref()).collect::<HashSet<_>>();
+        let ids = trie.query_ids(&<(&A,)>::SORTED_IDS).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(2), ArchetypeId(3)].into_iter())
