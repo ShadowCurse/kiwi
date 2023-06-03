@@ -124,6 +124,26 @@ impl BlobVec {
         &mut *(self.get_erased_ptr_mut(index) as *mut T)
     }
 
+    /// Get a pointer to the object at `index`
+    ///
+    /// # Safety
+    /// - The index should be in range 0 to blobvec.len()
+    #[inline]
+    pub unsafe fn get_ptr<T>(&self, index: usize) -> *const T {
+        let data_index = index * self.layout.size();
+        &self.data[data_index] as *const u8 as *const T
+    }
+
+    /// Get a mutable reference to the object at `index`
+    ///
+    /// # Safety
+    /// - The index should be in range 0 to blobvec.len()
+    #[inline]
+    pub unsafe fn get_ptr_mut<T>(&self, index: usize) -> *mut T {
+        let data_index = index * self.layout.size();
+        &self.data[data_index] as *const u8 as *mut T
+    }
+
     /// Get a reference to the object at `index`
     /// as a reference to void
     ///
@@ -449,20 +469,63 @@ mod test {
         unsafe { blob.push(Foo { a: 2, b: false, c: (2, 2) }) };
         unsafe { blob.push(Foo { a: 3, b: false, c: (3, 3) }) };
 
-        assert_eq!(unsafe {blob.get::<Foo>(0)}, &Foo { a: 0, b: false, c: (0, 0) });
-        assert_eq!(unsafe {blob.get::<Foo>(1)}, &Foo { a: 1, b: false, c: (1, 1) });
-        assert_eq!(unsafe {blob.get::<Foo>(2)}, &Foo { a: 2, b: false, c: (2, 2) });
-        assert_eq!(unsafe {blob.get::<Foo>(3)}, &Foo { a: 3, b: false, c: (3, 3) });
+        assert_eq!(unsafe { blob.get::<Foo>(0) }, &Foo { a: 0, b: false, c: (0, 0) });
+        assert_eq!(unsafe { blob.get::<Foo>(1) }, &Foo { a: 1, b: false, c: (1, 1) });
+        assert_eq!(unsafe { blob.get::<Foo>(2) }, &Foo { a: 2, b: false, c: (2, 2) });
+        assert_eq!(unsafe { blob.get::<Foo>(3) }, &Foo { a: 3, b: false, c: (3, 3) });
 
-        assert_eq!(unsafe {blob.get_mut::<Foo>(0)}, &Foo { a: 0, b: false, c: (0, 0) });
-        assert_eq!(unsafe {blob.get_mut::<Foo>(1)}, &Foo { a: 1, b: false, c: (1, 1) });
-        assert_eq!(unsafe {blob.get_mut::<Foo>(2)}, &Foo { a: 2, b: false, c: (2, 2) });
-        assert_eq!(unsafe {blob.get_mut::<Foo>(3)}, &Foo { a: 3, b: false, c: (3, 3) });
+        assert_eq!(unsafe { blob.get_mut::<Foo>(0) }, &Foo { a: 0, b: false, c: (0, 0) });
+        assert_eq!(unsafe { blob.get_mut::<Foo>(1) }, &Foo { a: 1, b: false, c: (1, 1) });
+        assert_eq!(unsafe { blob.get_mut::<Foo>(2) }, &Foo { a: 2, b: false, c: (2, 2) });
+        assert_eq!(unsafe { blob.get_mut::<Foo>(3) }, &Foo { a: 3, b: false, c: (3, 3) });
 
-        assert_eq!(unsafe {blob.get_mut_unchecked::<Foo>(0)}, &Foo { a: 0, b: false, c: (0, 0) });
-        assert_eq!(unsafe {blob.get_mut_unchecked::<Foo>(1)}, &Foo { a: 1, b: false, c: (1, 1) });
-        assert_eq!(unsafe {blob.get_mut_unchecked::<Foo>(2)}, &Foo { a: 2, b: false, c: (2, 2) });
-        assert_eq!(unsafe {blob.get_mut_unchecked::<Foo>(3)}, &Foo { a: 3, b: false, c: (3, 3) });
+        assert_eq!(unsafe { blob.get_mut_unchecked::<Foo>(0) }, &Foo { a: 0, b: false, c: (0, 0) });
+        assert_eq!(unsafe { blob.get_mut_unchecked::<Foo>(1) }, &Foo { a: 1, b: false, c: (1, 1) });
+        assert_eq!(unsafe { blob.get_mut_unchecked::<Foo>(2) }, &Foo { a: 2, b: false, c: (2, 2) });
+        assert_eq!(unsafe { blob.get_mut_unchecked::<Foo>(3) }, &Foo { a: 3, b: false, c: (3, 3) });
+    }
+
+    #[test]
+    fn blob_get_ptr_u32() {
+        let layout = Layout::new::<u32>();
+        let mut blob = BlobVec::new(layout, None);
+
+        unsafe { blob.push(0) };
+        unsafe { blob.push(1) };
+        unsafe { blob.push(2) };
+        unsafe { blob.push(3) };
+
+        assert_eq!(unsafe { *blob.get_ptr::<u32>(0) }, 0);
+        assert_eq!(unsafe { *blob.get_ptr::<u32>(1) }, 1);
+        assert_eq!(unsafe { *blob.get_ptr::<u32>(2) }, 2);
+        assert_eq!(unsafe { *blob.get_ptr::<u32>(3) }, 3);
+
+        assert_eq!(unsafe { *blob.get_ptr_mut::<u32>(0) }, 0);
+        assert_eq!(unsafe { *blob.get_ptr_mut::<u32>(1) }, 1);
+        assert_eq!(unsafe { *blob.get_ptr_mut::<u32>(2) }, 2);
+        assert_eq!(unsafe { *blob.get_ptr_mut::<u32>(3) }, 3);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn blob_get_ptr_foo() {
+        let layout = Layout::new::<Foo>();
+        let mut blob = BlobVec::new(layout, None);
+
+        unsafe { blob.push(Foo { a: 0, b: false, c: (0, 0) }) };
+        unsafe { blob.push(Foo { a: 1, b: false, c: (1, 1) }) };
+        unsafe { blob.push(Foo { a: 2, b: false, c: (2, 2) }) };
+        unsafe { blob.push(Foo { a: 3, b: false, c: (3, 3) }) };
+
+        assert_eq!(unsafe { *blob.get_ptr::<Foo>(0) }, Foo { a: 0, b: false, c: (0, 0) });
+        assert_eq!(unsafe { *blob.get_ptr::<Foo>(1) }, Foo { a: 1, b: false, c: (1, 1) });
+        assert_eq!(unsafe { *blob.get_ptr::<Foo>(2) }, Foo { a: 2, b: false, c: (2, 2) });
+        assert_eq!(unsafe { *blob.get_ptr::<Foo>(3) }, Foo { a: 3, b: false, c: (3, 3) });
+
+        assert_eq!(unsafe { *blob.get_mut::<Foo>(0) }, Foo { a: 0, b: false, c: (0, 0) });
+        assert_eq!(unsafe { *blob.get_mut::<Foo>(1) }, Foo { a: 1, b: false, c: (1, 1) });
+        assert_eq!(unsafe { *blob.get_mut::<Foo>(2) }, Foo { a: 2, b: false, c: (2, 2) });
+        assert_eq!(unsafe { *blob.get_mut::<Foo>(3) }, Foo { a: 3, b: false, c: (3, 3) });
     }
 
     #[test]
@@ -524,39 +587,6 @@ mod test {
             let reference = unsafe { blob.get_erased_ref_mut(index as usize) };
             let reference = unsafe { &*(reference as *mut () as *mut Foo) };
             assert_eq!(reference, &mut Foo { a: index, b: false, c: (index as u8, index as u8) });
-        };
-
-        check_ref_mut(0);
-        check_ref_mut(1);
-        check_ref_mut(2);
-        check_ref_mut(3);
-    }
-
-    #[test]
-    fn blob_get_erased_ptr_u8() {
-        let layout = Layout::new::<u8>();
-        let mut blob = BlobVec::new(layout, None);
-
-        unsafe { blob.push(0) };
-        unsafe { blob.push(1) };
-        unsafe { blob.push(2) };
-        unsafe { blob.push(3) };
-
-        let check_ref = |index: u8| {
-            let reference = unsafe { blob.get_erased_ptr(index as usize) };
-            let reference = unsafe { &*(reference as *const u8) };
-            assert_eq!(reference, &index);
-        };
-
-        check_ref(0);
-        check_ref(1);
-        check_ref(2);
-        check_ref(3);
-
-        let check_ref_mut = |mut index: u8| {
-            let reference = unsafe { blob.get_erased_ptr_mut(index as usize) };
-            let reference = unsafe { &*(reference as *mut u8) };
-            assert_eq!(reference, &mut index);
         };
 
         check_ref_mut(0);
