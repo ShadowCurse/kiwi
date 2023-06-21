@@ -56,12 +56,12 @@ impl World {
     ) -> Result<(), Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
-                let mut arch_info = self.archetypes.get_info(*arch)?.clone();
                 let old_table_id = match self.archetype_to_table.get(arch) {
                     Some(table_id) => *table_id,
                     None => Err(Error::RogueArchetype)?,
                 };
 
+                let mut arch_info = self.archetypes.get_info(*arch)?.clone();
                 arch_info.add_component::<C>()?;
 
                 let new_arch_id = match self.archetypes.get_id(&arch_info) {
@@ -128,12 +128,12 @@ impl World {
     pub fn remove_component<C: Component>(&mut self, entity: Entity) -> Result<(), Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
-                let mut arch_info = self.archetypes.get_info(*arch)?.clone();
                 let old_table_id = match self.archetype_to_table.get(arch) {
                     Some(table_id) => *table_id,
                     None => Err(Error::RogueArchetype)?,
                 };
 
+                let mut arch_info = self.archetypes.get_info(*arch)?.clone();
                 arch_info.remove_component::<C>()?;
 
                 let new_arch_id = match self.archetypes.get_id(&arch_info) {

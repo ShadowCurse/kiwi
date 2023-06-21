@@ -192,13 +192,24 @@ impl ArchetypesTrie {
             index == components.len() - 1,
             nodes.binary_search_by_key(&components[index], |node| node.component_id),
         ) {
+            // Not last component, search next level
             (false, Ok(i)) => Self::recursive_insert(
                 &mut nodes[i].following_nodes,
                 components,
                 index + 1,
                 archetype_id,
             ),
-            (true, Ok(_)) => Err(Error::InsertingArchetypeDuplicate),
+            // Last component, node exist
+            (true, Ok(i)) => {
+                // Node did not have a type
+                if nodes[i].archetype_id.is_none() {
+                    nodes[i].archetype_id = Some(archetype_id);
+                    Ok(())
+                } else {
+                    Err(Error::InsertingArchetypeDuplicate)
+                }
+            }
+            // Node is not found, inserting one
             (last, Err(i)) => {
                 let node = ArchetypeNode::new(components[index]);
                 nodes.insert(i, node);
