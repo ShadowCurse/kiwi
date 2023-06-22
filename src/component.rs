@@ -75,19 +75,19 @@ macro_rules! impl_component_tuple {
             // Currently we transform TypeId to u64, but this is wrond
             // Wait untill TypId can be compared in compile time and change this mess
             const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids_u64: [u64; count_tts!($($t)*)] = [
+                let ids_u128: [u128; count_tts!($($t)*)] = [
                     $(
                         unsafe {
-                            std::mem::transmute::<_, u64>(TypeId::of::<<$t as ComponentRef>::Component>())
+                            std::mem::transmute::<_, _>(TypeId::of::<<$t as ComponentRef>::Component>())
                         }
                     ),*
                 ];
-                let ids_u64 = static_sort(ids_u64, 0, count_tts!($($t)*) as isize - 1);
+                let ids_u128 = static_sort(ids_u128, 0, count_tts!($($t)*) as isize - 1);
                 let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<<$t as ComponentRef>::Component>()),*];
                 let mut _index = 0;
                 $(
                     let _ = TypeId::of::<$t>();
-                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
+                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u128[_index]) };
                     _index += 1;
                 )*
                ids_type_id
@@ -131,19 +131,19 @@ macro_rules! impl_component_tuple_with_entity {
             // Currently we transform TypeId to u64, but this is wrond
             // Wait untill TypId can be compared in compile time and change this mess
             const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids_u64: [u64; count_tts!($($t)*)] = [
+                let ids_u128: [u128; count_tts!($($t)*)] = [
                     $(
                         unsafe {
-                            std::mem::transmute::<_, u64>(TypeId::of::<<$t as ComponentRef>::Component>())
+                            std::mem::transmute::<_, _>(TypeId::of::<<$t as ComponentRef>::Component>())
                         }
                     ),*
                 ];
-                let ids_u64 = static_sort(ids_u64, 0, count_tts!($($t)*) as isize - 1);
+                let ids_u128 = static_sort(ids_u128, 0, count_tts!($($t)*) as isize - 1);
                 let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<<$t as ComponentRef>::Component>()),*];
                 let mut _index = 0;
                 $(
                     let _ = TypeId::of::<$t>();
-                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u64[_index]) };
+                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u128[_index]) };
                     _index += 1;
                 )*
                ids_type_id

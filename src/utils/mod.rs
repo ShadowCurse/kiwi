@@ -4,10 +4,10 @@ pub mod type_traits;
 
 #[inline]
 pub const fn static_sort<const N: usize>(
-    mut values: [u64; N],
+    mut values: [u128; N],
     mut low: isize,
     mut high: isize,
-) -> [u64; N] {
+) -> [u128; N] {
     let range = high - low;
     if range <= 0 || range >= values.len() as isize {
         return values;
