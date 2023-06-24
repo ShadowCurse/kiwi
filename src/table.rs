@@ -67,6 +67,28 @@ impl TableStorage {
         }
     }
 
+    pub fn get_component<C: Component>(
+        &self,
+        table_id: TableId,
+        entity: &Entity,
+    ) -> Result<&C, Error> {
+        match self.tables.get(table_id.0) {
+            Some(table) => table.get_component(entity),
+            None => Err(Error::TableDoesNotExist),
+        }
+    }
+
+    pub fn get_component_mut<C: Component>(
+        &mut self,
+        table_id: TableId,
+        entity: &Entity,
+    ) -> Result<&mut C, Error> {
+        match self.tables.get_mut(table_id.0) {
+            Some(table) => table.get_component_mut(entity),
+            None => Err(Error::TableDoesNotExist),
+        }
+    }
+
     /// # Safety
     /// This is safe as long as table ids are different
     pub unsafe fn transfer_line_with_insertion<T: Component>(
@@ -216,20 +238,30 @@ impl Table {
         unsafe { self.columns[type_id].get_as_byte_slice(self.entities[entity]) }
     }
 
-    pub fn get_component<C: Component>(&self, entity: &Entity) -> Option<&C> {
+    pub fn get_component<C: Component>(&self, entity: &Entity) -> Result<&C, Error> {
         let line = self.entities[entity];
         let type_id = TypeId::of::<C>();
-        self.columns
-            .get(&type_id)
-            .map(|column| unsafe { column.get(line) })
+        match self.columns.get(&type_id) {
+            Some(column) => {
+                // If column exist for the type
+                // then it is safe to add component of this type
+                Ok(unsafe { column.get(line) })
+            }
+            None => Err(Error::TableDoesNotContainComponentColumn),
+        }
     }
 
-    pub fn get_component_mut<C: Component>(&mut self, entity: &Entity) -> Option<&mut C> {
+    pub fn get_component_mut<C: Component>(&mut self, entity: &Entity) -> Result<&mut C, Error> {
         let line = self.entities[entity];
         let type_id = TypeId::of::<C>();
-        self.columns
-            .get_mut(&type_id)
-            .map(|column| unsafe { column.get_mut(line) })
+        match self.columns.get_mut(&type_id) {
+            Some(column) => {
+                // If column exist for the type
+                // then it is safe to add component of this type
+                Ok(unsafe { column.get_mut(line) })
+            }
+            None => Err(Error::TableDoesNotContainComponentColumn),
+        }
     }
 
     pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), Error> {

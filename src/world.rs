@@ -123,6 +123,36 @@ impl World {
         Ok(())
     }
 
+    /// Updates a component of the entity
+    pub fn get_component<C: Component>(&self, entity: Entity) -> Result<&C, Error> {
+        match self.entity_to_archetype.get(&entity) {
+            Some(arch) => {
+                let table_id = match self.archetype_to_table.get(arch) {
+                    Some(table_id) => *table_id,
+                    None => Err(Error::RogueArchetype)?,
+                };
+
+                Ok(self.storage.get_component(table_id, &entity)?)
+            }
+            None => Err(Error::NonExistingEntity(entity)),
+        }
+    }
+
+    /// Updates a component of the entity
+    pub fn get_component_mut<C: Component>(&mut self, entity: Entity) -> Result<&mut C, Error> {
+        match self.entity_to_archetype.get(&entity) {
+            Some(arch) => {
+                let table_id = match self.archetype_to_table.get(arch) {
+                    Some(table_id) => *table_id,
+                    None => Err(Error::RogueArchetype)?,
+                };
+
+                Ok(self.storage.get_component_mut(table_id, &entity)?)
+            }
+            None => Err(Error::NonExistingEntity(entity)),
+        }
+    }
+
     /// Removes component from the entity
     /// Returns error if component does not exist
     pub fn remove_component<C: Component>(&mut self, entity: Entity) -> Result<(), Error> {
