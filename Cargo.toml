@@ -7,8 +7,28 @@ edition = "2021"
 trace = []
 
 [dependencies]
-thiserror = "1.0.37"
+thiserror = "1.0.40"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "iter_simple"
+harness = false
+
+[[bench]]
+name = "iter_wide"
+harness = false
+
+[[bench]]
+name = "components_add_remove"
+harness = false
+
+[[bench]]
+name = "components_insert"
+harness = false
 
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
+
