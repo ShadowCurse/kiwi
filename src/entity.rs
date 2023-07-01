@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-const MAX_ENTITIES: u16 = std::u16::MAX;
+pub const MAX_ENTITIES: u16 = std::u16::MAX;
 
 type EntityGeneration = u16;
 type EntityId = u16;

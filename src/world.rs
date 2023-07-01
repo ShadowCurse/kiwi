@@ -66,11 +66,7 @@ impl World {
 
                 let new_arch_id = match self.archetypes.get_id(&arch_info) {
                     Some(id) => id,
-                    None => {
-                        let new_arch_id = self.archetypes.insert(arch_info.clone())?;
-                        self.entity_to_archetype.insert(entity, new_arch_id);
-                        new_arch_id
-                    }
+                    None => self.archetypes.insert(arch_info.clone())?,
                 };
 
                 // Updating current entity with new archetype id
@@ -168,12 +164,9 @@ impl World {
 
                 let new_arch_id = match self.archetypes.get_id(&arch_info) {
                     Some(id) => id,
-                    None => {
-                        let new_arch_id = self.archetypes.insert(arch_info.clone())?;
-                        self.entity_to_archetype.insert(entity, new_arch_id);
-                        new_arch_id
-                    }
+                    None => self.archetypes.insert(arch_info.clone())?,
                 };
+                self.entity_to_archetype.insert(entity, new_arch_id);
 
                 let new_table_id = match self.archetype_to_table.get(&new_arch_id) {
                     Some(new_table_id) => *new_table_id,
@@ -326,6 +319,15 @@ mod tests {
         assert!(!info.has_component::<u8>());
         assert!(!info.has_component::<u16>());
         assert!(!info.has_component::<u32>());
+
+        ecs.add_component(entity, 1u8).unwrap();
+        ecs.add_component(entity, 2u16).unwrap();
+        ecs.add_component(entity, 3u32).unwrap();
+
+        let info = ecs.entity_component_info(entity).unwrap();
+        assert!(info.has_component::<u8>());
+        assert!(info.has_component::<u16>());
+        assert!(info.has_component::<u32>());
     }
 
     #[test]

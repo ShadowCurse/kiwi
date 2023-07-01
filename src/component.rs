@@ -114,6 +114,11 @@ impl_component_tuple!(C1, C2);
 impl_component_tuple!(C1, C2, C3);
 impl_component_tuple!(C1, C2, C3, C4);
 impl_component_tuple!(C1, C2, C3, C4, C5);
+impl_component_tuple!(C1, C2, C3, C4, C5, C6);
+impl_component_tuple!(C1, C2, C3, C4, C5, C6, C7);
+impl_component_tuple!(C1, C2, C3, C4, C5, C6, C7, C8);
+impl_component_tuple!(C1, C2, C3, C4, C5, C6, C7, C8, C9);
+impl_component_tuple!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10);
 
 macro_rules! impl_component_tuple_with_entity {
     ($($t:ident),*) => {
@@ -171,6 +176,11 @@ impl_component_tuple_with_entity!(C1, C2);
 impl_component_tuple_with_entity!(C1, C2, C3);
 impl_component_tuple_with_entity!(C1, C2, C3, C4);
 impl_component_tuple_with_entity!(C1, C2, C3, C4, C5);
+impl_component_tuple_with_entity!(C1, C2, C3, C4, C5, C6);
+impl_component_tuple_with_entity!(C1, C2, C3, C4, C5, C6, C7);
+impl_component_tuple_with_entity!(C1, C2, C3, C4, C5, C6, C7, C8);
+impl_component_tuple_with_entity!(C1, C2, C3, C4, C5, C6, C7, C8, C9);
+impl_component_tuple_with_entity!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10);
 
 #[cfg(test)]
 mod test {
