@@ -1,4 +1,7 @@
-use std::marker::PhantomData;
+use std::{
+    fmt::{Debug, Write},
+    marker::PhantomData,
+};
 
 use crate::world::World;
 
@@ -45,8 +48,20 @@ impl Default for Systems {
     }
 }
 
+impl Debug for Systems {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "is_startup: {}, startup_systems num: {}, system num: {}",
+            self.is_startup,
+            self.startup_systems.len(),
+            self.systems.len()
+        ))
+    }
+}
+
 impl Systems {
     /// Adds system that is run only on startup
+    #[tracing::instrument(skip(system))]
     pub fn add_startup_system<S, P>(&mut self, system: S)
     where
         S: IntoSystem<P>,
@@ -56,6 +71,7 @@ impl Systems {
     }
 
     /// Adds system that is run on every [`Systems::run`] call;
+    #[tracing::instrument(skip(system))]
     pub fn add_system<S, P>(&mut self, system: S)
     where
         S: IntoSystem<P>,
@@ -65,6 +81,7 @@ impl Systems {
     }
 
     /// Runs all the systems
+    #[tracing::instrument]
     pub fn run(&mut self, world: &mut World) {
         if self.is_startup {
             for system in self.startup_systems.iter_mut() {
@@ -94,6 +111,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct FunctionSystem<S, Params: SystemParameter> {
     system: S,
     params: PhantomData<Params>,
@@ -174,6 +192,7 @@ impl SystemParameter for () {
     type Fetch = TupleFetch;
 }
 
+#[derive(Debug)]
 pub struct TupleFetch;
 impl SystemParameterFetch for TupleFetch {
     type Item<'a> = ();

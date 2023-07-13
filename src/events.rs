@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
     resources::{ResMut, Resource},
@@ -6,25 +6,28 @@ use crate::{
     world::World,
 };
 
+pub trait Event: Debug + 'static {}
+
 #[derive(Debug, Clone)]
-pub struct Events<T: 'static> {
-    pub events: Vec<T>,
+pub struct Events<E: Event> {
+    pub events: Vec<E>,
 }
 
-impl<T: 'static> Default for Events<T> {
+impl<E: Event> Default for Events<E> {
     fn default() -> Self {
         Self { events: vec![] }
     }
 }
 
-impl<T: 'static> Resource for Events<T> {}
+impl<E: Event> Resource for Events<E> {}
 
-pub struct EventReader<'a, T: 'static> {
-    events: &'a Events<T>,
+#[derive(Debug)]
+pub struct EventReader<'a, E: Event> {
+    events: &'a Events<E>,
 }
 
-impl<'a, T: 'static> EventReader<'a, T> {
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
+impl<'a, E: Event> EventReader<'a, E> {
+    pub fn iter(&self) -> impl Iterator<Item = &E> {
         self.events.events.iter()
     }
 
@@ -37,32 +40,34 @@ impl<'a, T: 'static> EventReader<'a, T> {
     }
 }
 
-impl<'a, T: 'static> SystemParameter for EventReader<'a, T> {
-    type Fetch = EventReaderFetch<T>;
+impl<'a, E: Event> SystemParameter for EventReader<'a, E> {
+    type Fetch = EventReaderFetch<E>;
 }
 
-pub struct EventReaderFetch<T: 'static> {
-    phantom: PhantomData<T>,
+#[derive(Debug)]
+pub struct EventReaderFetch<E: Event> {
+    phantom: PhantomData<E>,
 }
 
-impl<T: 'static> SystemParameterFetch for EventReaderFetch<T> {
-    type Item<'a> = EventReader<'a, T>;
+impl<E: Event> SystemParameterFetch for EventReaderFetch<E> {
+    type Item<'a> = EventReader<'a, E>;
 
     fn fetch(world: &mut World) -> Self::Item<'_> {
         Self::Item {
             events: world
-                .get_resource::<Events<T>>()
+                .get_resource::<Events<E>>()
                 .expect("couldn't find event type"),
         }
     }
 }
 
-pub struct EventWriter<'a, T: 'static> {
-    events: &'a mut Events<T>,
+#[derive(Debug)]
+pub struct EventWriter<'a, E: Event> {
+    events: &'a mut Events<E>,
 }
 
-impl<'a, T: 'static> EventWriter<'a, T> {
-    pub fn send(&mut self, event: T) {
+impl<'a, E: Event> EventWriter<'a, E> {
+    pub fn send(&mut self, event: E) {
         self.events.events.push(event);
     }
 
@@ -75,27 +80,28 @@ impl<'a, T: 'static> EventWriter<'a, T> {
     }
 }
 
-impl<'a, T: 'static> SystemParameter for EventWriter<'a, T> {
-    type Fetch = EventWriterFetch<T>;
+impl<'a, E: Event> SystemParameter for EventWriter<'a, E> {
+    type Fetch = EventWriterFetch<E>;
 }
 
-pub struct EventWriterFetch<T: 'static> {
-    phantom: PhantomData<T>,
+#[derive(Debug)]
+pub struct EventWriterFetch<E: Event> {
+    phantom: PhantomData<E>,
 }
 
-impl<T: 'static> SystemParameterFetch for EventWriterFetch<T> {
-    type Item<'a> = EventWriter<'a, T>;
+impl<E: Event> SystemParameterFetch for EventWriterFetch<E> {
+    type Item<'a> = EventWriter<'a, E>;
 
     fn fetch(world: &mut World) -> Self::Item<'_> {
         Self::Item {
             events: world
-                .get_resource_mut::<Events<T>>()
+                .get_resource_mut::<Events<E>>()
                 .expect("couldn't find event type"),
         }
     }
 }
 
-pub fn clear_events<T: 'static>(mut events: ResMut<Events<T>>) {
+pub fn clear_events<E: Event>(mut events: ResMut<Events<E>>) {
     events
         .get_mut()
         .expect("couldn't find event type")

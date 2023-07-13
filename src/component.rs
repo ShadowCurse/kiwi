@@ -1,4 +1,4 @@
-use std::any::TypeId;
+use std::{any::TypeId, fmt::Debug};
 
 use crate::{blobvec::BlobVec, count_tts, entity::Entity, utils::static_sort};
 
@@ -30,7 +30,7 @@ where
     }
 }
 
-pub trait Component: Sized + 'static {}
+pub trait Component: Sized + Debug + 'static {}
 
 macro_rules! impl_component {
     ($t:tt) => {
@@ -52,7 +52,7 @@ impl_component!(i128);
 impl_component!(f32);
 impl_component!(f64);
 
-pub trait ComponentTuple<const L: usize>: Sized + 'static {
+pub trait ComponentTuple<const L: usize>: Sized + Debug + 'static {
     const IDS: [TypeId; L];
     const SORTED_IDS: [TypeId; L];
 
@@ -63,7 +63,7 @@ macro_rules! impl_component_tuple {
     ($($t:ident),*) => {
         impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for ($($t,)*)
         where
-            $($t: 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
+            $($t: Debug + 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
             const IDS: [TypeId; count_tts!($($t)*)] = [
                 $(
@@ -124,7 +124,7 @@ macro_rules! impl_component_tuple_with_entity {
     ($($t:ident),*) => {
         impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for (Entity, $($t,)*)
         where
-            $($t: 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
+            $($t: Debug + 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
             const IDS: [TypeId; count_tts!($($t)*)] = [
                 $(

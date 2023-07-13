@@ -1,4 +1,4 @@
-use std::{any::TypeId, collections::HashMap, marker::PhantomData};
+use std::{any::TypeId, collections::HashMap, fmt::Debug, marker::PhantomData};
 
 use crate::{
     blobvec::BlobVec,
@@ -15,8 +15,9 @@ pub enum Error {
     GetNonExisting(&'static str),
 }
 
-pub trait Resource: 'static {}
+pub trait Resource: Debug + 'static {}
 
+#[derive(Debug)]
 pub struct Res<'world, T>
 where
     T: Resource,
@@ -41,6 +42,7 @@ where
     type Fetch = ResFetch<T>;
 }
 
+#[derive(Debug)]
 pub struct ResFetch<T>
 where
     T: Resource,
@@ -62,6 +64,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct ResMut<'world, T>
 where
     T: Resource,
@@ -86,6 +89,7 @@ where
     type Fetch = ResMutFetch<T>;
 }
 
+#[derive(Debug)]
 pub struct ResMutFetch<T>
 where
     T: Resource,

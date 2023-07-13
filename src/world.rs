@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use crate::archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
 use crate::component::{Component, ComponentTuple};
 use crate::entity::{Entity, EntityGenerator};
-use crate::events::Events;
+use crate::events::{Events, Event};
 use crate::resources::{Resource, Resources};
 use crate::system::{SystemParameter, SystemParameterFetch};
 use crate::table::{TableId, TableStorage};
@@ -49,6 +49,7 @@ impl World {
 
     /// Adds component to the entity
     /// Returns error if component with the same type is already added to the entity
+    #[tracing::instrument]
     pub fn add_component<C: Component>(
         &mut self,
         entity: Entity,
@@ -120,6 +121,7 @@ impl World {
     }
 
     /// Updates a component of the entity
+    #[tracing::instrument]
     pub fn get_component<C: Component>(&self, entity: Entity) -> Result<&C, Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
@@ -135,6 +137,7 @@ impl World {
     }
 
     /// Updates a component of the entity
+    #[tracing::instrument]
     pub fn get_component_mut<C: Component>(&mut self, entity: Entity) -> Result<&mut C, Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
@@ -151,6 +154,7 @@ impl World {
 
     /// Removes component from the entity
     /// Returns error if component does not exist
+    #[tracing::instrument]
     pub fn remove_component<C: Component>(&mut self, entity: Entity) -> Result<(), Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
@@ -192,34 +196,41 @@ impl World {
         Ok(())
     }
 
-    pub fn add_resource<T: Resource>(&mut self, resource: T) {
+    #[tracing::instrument]
+    pub fn add_resource<R: Resource>(&mut self, resource: R) {
         self.resources.add(resource)
     }
 
-    pub fn remove_resource<T: Resource>(&mut self) -> Result<(), Error> {
-        self.resources.remove::<T>().map_err(Error::Resources)
+    #[tracing::instrument]
+    pub fn remove_resource<R: Resource>(&mut self) -> Result<(), Error> {
+        self.resources.remove::<R>().map_err(Error::Resources)
     }
 
-    pub fn get_resource<T: Resource>(&self) -> Result<&T, Error> {
-        self.resources.get::<T>().map_err(Error::Resources)
+    #[tracing::instrument]
+    pub fn get_resource<R: Resource>(&self) -> Result<&R, Error> {
+        self.resources.get::<R>().map_err(Error::Resources)
     }
 
-    pub fn get_resource_mut<T: Resource>(&mut self) -> Result<&mut T, Error> {
-        self.resources.get_mut::<T>().map_err(Error::Resources)
+    #[tracing::instrument]
+    pub fn get_resource_mut<R: Resource>(&mut self) -> Result<&mut R, Error> {
+        self.resources.get_mut::<R>().map_err(Error::Resources)
     }
 
     /// # Safety
     /// Save as long as same resource is accessed only once
-    pub unsafe fn get_resource_mut_unchecked<T: Resource>(&self) -> Result<&mut T, Error> {
+    #[tracing::instrument]
+    pub unsafe fn get_resource_mut_unchecked<R: Resource>(&self) -> Result<&mut R, Error> {
         self.resources
-            .get_mut_unchecked::<T>()
+            .get_mut_unchecked::<R>()
             .map_err(Error::Resources)
     }
 
-    pub fn add_event<T: 'static>(&mut self) {
-        self.resources.add(Events::<T>::default())
+    #[tracing::instrument]
+    pub fn add_event<E: Event>(&mut self) {
+        self.resources.add(Events::<E>::default())
     }
 
+    #[tracing::instrument]
     pub fn query<'a, 'b, 'c, CT, const L: usize>(&'a self) -> impl Iterator<Item = CT> + '_
     where
         'c: 'a,
@@ -235,6 +246,7 @@ impl World {
     }
 }
 
+#[derive(Debug)]
 pub struct WorldRef<'world> {
     world: &'world World,
 }
@@ -251,6 +263,7 @@ impl SystemParameter for WorldRef<'_> {
     type Fetch = WorldRefFetch;
 }
 
+#[derive(Debug)]
 pub struct WorldRefFetch;
 
 impl SystemParameterFetch for WorldRefFetch {
@@ -261,6 +274,7 @@ impl SystemParameterFetch for WorldRefFetch {
     }
 }
 
+#[derive(Debug)]
 pub struct WorldRefMut<'world> {
     world: &'world mut World,
 }
@@ -283,6 +297,7 @@ impl SystemParameter for WorldRefMut<'_> {
     type Fetch = WorldRefMutFetch;
 }
 
+#[derive(Debug)]
 pub struct WorldRefMutFetch;
 
 impl SystemParameterFetch for WorldRefMutFetch {

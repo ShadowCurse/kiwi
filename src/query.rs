@@ -6,6 +6,7 @@ use crate::{
     world::World,
 };
 
+#[derive(Debug)]
 pub struct Query<'world, T, const L: usize>
 where
     T: ComponentTuple<L> + 'static,
@@ -30,6 +31,7 @@ where
     type Fetch = QueryFetch<T, L>;
 }
 
+#[derive(Debug)]
 pub struct QueryFetch<T, const L: usize>
 where
     T: ComponentTuple<L>,
