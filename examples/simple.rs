@@ -13,6 +13,7 @@ struct Position {
 
 impl Component for Position {}
 
+#[derive(Debug)]
 struct Velocity {
     x: f32,
     y: f32,

@@ -30,10 +30,12 @@ pub struct Archetype<'a> {
 }
 
 impl<'a> Archetype<'a> {
+    #[tracing::instrument(skip_all)]
     pub fn iter(&self) -> impl Iterator<Item = &TypeId> {
         self.components.iter()
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn is_empty(&self) -> bool {
         self.components.is_empty()
     }
@@ -53,20 +55,24 @@ pub struct ArchetypeInfo {
 }
 
 impl ArchetypeInfo {
+    #[tracing::instrument(skip_all)]
     pub fn archetype(&self) -> Archetype<'static> {
         Archetype {
             components: Cow::Owned(self.as_sorted_vec_of_type_ids()),
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn len(&self) -> usize {
         self.components.len()
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn is_empty(&self) -> bool {
         self.components.is_empty()
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn add_component<T: Component>(&mut self) -> Result<(), Error> {
         let component_info = TypeInfo::new::<T>();
         match self.components.insert(component_info) {
@@ -75,11 +81,13 @@ impl ArchetypeInfo {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn has_component<T: Component>(&self) -> bool {
         let component_info = TypeInfo::new::<T>();
         self.components.contains(&component_info)
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn remove_component<T: Component>(&mut self) -> Result<(), Error> {
         let component_info = TypeInfo::new::<T>();
         match self.components.remove(&component_info) {
@@ -88,10 +96,12 @@ impl ArchetypeInfo {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn iter(&self) -> impl Iterator<Item = &TypeInfo> {
         self.components.iter()
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn as_sorted_vec_of_type_ids(&self) -> Vec<TypeId> {
         let mut vec = self
             .components
@@ -110,6 +120,7 @@ pub struct Archetypes {
 }
 
 impl Archetypes {
+    #[tracing::instrument(skip_all)]
     pub fn insert(&mut self, archetype_info: ArchetypeInfo) -> Result<ArchetypeId, Error> {
         let arch = archetype_info.archetype();
         let archetype_id = ArchetypeId(self.archetypes_info.insert(archetype_info));
@@ -117,16 +128,19 @@ impl Archetypes {
         Ok(archetype_id)
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn get_info(&self, archetype_id: ArchetypeId) -> Result<&ArchetypeInfo, Error> {
         self.archetypes_info
             .get(archetype_id.0)
             .ok_or(Error::NonExistingArchetype)
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn get_id(&self, archetype: &ArchetypeInfo) -> Option<ArchetypeId> {
         self.archetypes_trie.search(archetype.archetype())
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn query_ids<'a, 'b>(
         &'a self,
         ids: &'static [TypeId],
@@ -145,6 +159,7 @@ pub struct ArchetypesTrie {
 }
 
 impl ArchetypesTrie {
+    #[tracing::instrument(skip_all)]
     pub fn insert(&mut self, archetype: Archetype, archetype_id: ArchetypeId) -> Result<(), Error> {
         if archetype.is_empty() {
             self.empty_id = Some(archetype_id);
@@ -159,6 +174,7 @@ impl ArchetypesTrie {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn remove(&mut self, archetype: Archetype) -> Result<(), Error> {
         if archetype.is_empty() {
             Ok(())
@@ -167,6 +183,7 @@ impl ArchetypesTrie {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn search(&self, archetype: Archetype) -> Option<ArchetypeId> {
         if archetype.is_empty() {
             self.empty_id
@@ -175,6 +192,7 @@ impl ArchetypesTrie {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn query_ids<'a>(
         &'a self,
         ids: &'static [TypeId],
@@ -182,6 +200,7 @@ impl ArchetypesTrie {
         ArchetypesTrieQueryIterator::new(&self.root_nodes, ids)
     }
 
+    #[tracing::instrument(skip_all)]
     fn recursive_insert(
         nodes: &mut Vec<ArchetypeNode>,
         components: &[TypeId],
@@ -228,6 +247,7 @@ impl ArchetypesTrie {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn recursive_remove(
         nodes: &mut Vec<ArchetypeNode>,
         components: &[TypeId],
@@ -252,6 +272,7 @@ impl ArchetypesTrie {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn recursive_search(
         nodes: &[ArchetypeNode],
         components: &[TypeId],

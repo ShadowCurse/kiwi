@@ -45,6 +45,7 @@ impl TableStorage {
         TableId(table_id)
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn add_entity(&mut self, table_id: TableId, entity: Entity) -> Result<(), Error> {
         match self.tables.get_mut(table_id.0) {
             Some(table) => {
@@ -55,6 +56,7 @@ impl TableStorage {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn insert_component<T: Component>(
         &mut self,
         table_id: TableId,
@@ -67,6 +69,7 @@ impl TableStorage {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn get_component<C: Component>(
         &self,
         table_id: TableId,
@@ -78,6 +81,7 @@ impl TableStorage {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn get_component_mut<C: Component>(
         &mut self,
         table_id: TableId,
@@ -91,6 +95,7 @@ impl TableStorage {
 
     /// # Safety
     /// This is safe as long as table ids are different
+    #[tracing::instrument(skip_all)]
     pub unsafe fn transfer_line_with_insertion<T: Component>(
         &mut self,
         from: TableId,
@@ -111,6 +116,7 @@ impl TableStorage {
 
     /// # Safety
     /// This is safe as long as table ids are different
+    #[tracing::instrument(skip_all)]
     pub unsafe fn transfer_line_with_deletion<T: Component>(
         &mut self,
         from: TableId,
@@ -128,6 +134,7 @@ impl TableStorage {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn query<I, CT, const L: usize>(
         &self,
         table_id_iter: I,
@@ -144,6 +151,7 @@ impl TableStorage {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn get_table(&self, table_id: TableId) -> Option<&Table> {
         self.tables.get(table_id.0)
     }
@@ -208,6 +216,7 @@ impl Table {
         table
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn intersection(&self, other: &Table) -> Vec<TypeId> {
         self.columns
             .keys()
@@ -217,6 +226,7 @@ impl Table {
             .collect::<Vec<_>>()
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn add_entity(&mut self, entity: Entity) {
         match self.empty_lines.pop_front() {
             Some(line) => {
@@ -229,15 +239,18 @@ impl Table {
         };
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn remove_entity(&mut self, entity: &Entity) {
         self.empty_lines.push_back(self.entities[entity]);
         self.entities.remove(entity);
     }
 
+    #[tracing::instrument(skip_all)]
     fn get_component_as_slice(&self, entity: &Entity, type_id: &TypeId) -> &[u8] {
         unsafe { self.columns[type_id].get_as_byte_slice(self.entities[entity]) }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn get_component<C: Component>(&self, entity: &Entity) -> Result<&C, Error> {
         let line = self.entities[entity];
         let type_id = TypeId::of::<C>();
@@ -251,6 +264,7 @@ impl Table {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn get_component_mut<C: Component>(&mut self, entity: &Entity) -> Result<&mut C, Error> {
         let line = self.entities[entity];
         let type_id = TypeId::of::<C>();
@@ -264,6 +278,7 @@ impl Table {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), Error> {
         let line = self.entities[entity];
         for type_id in self.intersection(table).iter() {
@@ -276,12 +291,14 @@ impl Table {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     fn allocate_empty_line(&mut self) {
         for column in self.columns.values_mut() {
             column.push_empty();
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn copy_component_from_slice(
         &mut self,
         type_id: &TypeId,
@@ -299,6 +316,7 @@ impl Table {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn insert_component<C: Component>(
         &mut self,
         entity: &Entity,
@@ -319,6 +337,7 @@ impl Table {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn drop_component<C: Component>(&mut self, entity: &Entity) -> Result<(), Error> {
         let line = self.entities[entity];
         let type_id = TypeId::of::<C>();
@@ -335,6 +354,7 @@ impl Table {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn component_iter<CT, const L: usize>(&self) -> TableIterator<'_, CT, L>
     where
         CT: ComponentTuple<L>,

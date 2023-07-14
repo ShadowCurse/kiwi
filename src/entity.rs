@@ -37,6 +37,7 @@ impl EntityGenerator {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn create(&mut self) -> Entity {
         if let Some(id) = self.pending.pop() {
             Entity {
@@ -50,6 +51,7 @@ impl EntityGenerator {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn delete(&mut self, e: &Entity) {
         let generation = self.generations.get_mut(e.id as usize).unwrap();
         if *generation != e.gen {

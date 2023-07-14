@@ -49,7 +49,7 @@ impl World {
 
     /// Adds component to the entity
     /// Returns error if component with the same type is already added to the entity
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self, entity))]
     pub fn add_component<C: Component>(
         &mut self,
         entity: Entity,
@@ -121,7 +121,7 @@ impl World {
     }
 
     /// Updates a component of the entity
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn get_component<C: Component>(&self, entity: Entity) -> Result<&C, Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
@@ -137,7 +137,7 @@ impl World {
     }
 
     /// Updates a component of the entity
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn get_component_mut<C: Component>(&mut self, entity: Entity) -> Result<&mut C, Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
@@ -154,7 +154,7 @@ impl World {
 
     /// Removes component from the entity
     /// Returns error if component does not exist
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn remove_component<C: Component>(&mut self, entity: Entity) -> Result<(), Error> {
         match self.entity_to_archetype.get(&entity) {
             Some(arch) => {
@@ -196,41 +196,41 @@ impl World {
         Ok(())
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn add_resource<R: Resource>(&mut self, resource: R) {
         self.resources.add(resource)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn remove_resource<R: Resource>(&mut self) -> Result<(), Error> {
         self.resources.remove::<R>().map_err(Error::Resources)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn get_resource<R: Resource>(&self) -> Result<&R, Error> {
         self.resources.get::<R>().map_err(Error::Resources)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn get_resource_mut<R: Resource>(&mut self) -> Result<&mut R, Error> {
         self.resources.get_mut::<R>().map_err(Error::Resources)
     }
 
     /// # Safety
     /// Save as long as same resource is accessed only once
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub unsafe fn get_resource_mut_unchecked<R: Resource>(&self) -> Result<&mut R, Error> {
         self.resources
             .get_mut_unchecked::<R>()
             .map_err(Error::Resources)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn add_event<E: Event>(&mut self) {
         self.resources.add(Events::<E>::default())
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn query<'a, 'b, 'c, CT, const L: usize>(&'a self) -> impl Iterator<Item = CT> + '_
     where
         'c: 'a,

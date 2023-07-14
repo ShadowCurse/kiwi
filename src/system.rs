@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Debug, Write},
-    marker::PhantomData,
-};
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::world::World;
 
@@ -61,7 +58,7 @@ impl Debug for Systems {
 
 impl Systems {
     /// Adds system that is run only on startup
-    #[tracing::instrument(skip(system))]
+    #[tracing::instrument(skip_all)]
     pub fn add_startup_system<S, P>(&mut self, system: S)
     where
         S: IntoSystem<P>,
@@ -71,7 +68,7 @@ impl Systems {
     }
 
     /// Adds system that is run on every [`Systems::run`] call;
-    #[tracing::instrument(skip(system))]
+    #[tracing::instrument(skip_all)]
     pub fn add_system<S, P>(&mut self, system: S)
     where
         S: IntoSystem<P>,
@@ -81,7 +78,7 @@ impl Systems {
     }
 
     /// Runs all the systems
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn run(&mut self, world: &mut World) {
         if self.is_startup {
             for system in self.startup_systems.iter_mut() {
@@ -122,6 +119,7 @@ where
     S: SystemParameterFunction<P> + 'static,
     P: SystemParameter + 'static,
 {
+    #[tracing::instrument(skip_all)]
     fn run(&mut self, ecs: &mut World) {
         let params = P::Fetch::fetch(ecs);
         self.system.run(params);
