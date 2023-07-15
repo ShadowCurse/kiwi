@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-trace = []
+default = ["tracing/max_level_off", "tracing/release_max_level_off"]
 
 trace_max_level_off = ["tracing/max_level_off"]
 trace_max_level_error = ["tracing/max_level_error"]
