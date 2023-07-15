@@ -396,9 +396,13 @@ mod test {
 
     use super::*;
 
+    #[derive(Debug)]
     struct A {}
+    #[derive(Debug)]
     struct B {}
+    #[derive(Debug)]
     struct C {}
+    #[derive(Debug)]
     struct D {}
 
     impl Component for A {}

@@ -15,6 +15,7 @@ struct Position<const N: usize> {
 
 impl<const N: usize> Component for Position<N> {}
 
+#[derive(Debug)]
 struct Velocity<const N: usize> {
     x: f32,
     y: f32,

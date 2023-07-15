@@ -117,9 +117,12 @@ mod test {
 
     #[test]
     fn events() {
+        #[derive(Debug)]
         struct E {
             i: u8,
         }
+
+        impl Event for E {}
 
         fn test_write_events(mut writer: EventWriter<E>) {
             for i in 0..10 {
