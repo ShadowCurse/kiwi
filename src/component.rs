@@ -72,8 +72,8 @@ macro_rules! impl_component_tuple {
             ];
 
             // TODO
-            // Currently we transform TypeId to u64, but this is wrond
-            // Wait untill TypId can be compared in compile time and change this mess
+            // Currently we transform TypeId to u128, but this is wrong
+            // Wait until TypId can be compared at compile time and change this mess
             const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
                 let ids_u128: [u128; count_tts!($($t)*)] = [
                     $(
@@ -133,8 +133,8 @@ macro_rules! impl_component_tuple_with_entity {
             ];
 
             // TODO
-            // Currently we transform TypeId to u64, but this is wrond
-            // Wait untill TypId can be compared in compile time and change this mess
+            // Currently we transform TypeId to u128, but this is wrong
+            // Wait until TypId can be compared at compile time and change this mess
             const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
                 let ids_u128: [u128; count_tts!($($t)*)] = [
                     $(

@@ -80,7 +80,7 @@ fn setup_global_subscriber() -> (impl Drop, impl Drop) {
 
     let fmt_layer = fmt::Layer::default();
 
-    let (flame_layer, guard_falme) = FlameLayer::with_file("./tracing.folded").unwrap();
+    let (flame_layer, guard_flame) = FlameLayer::with_file("./tracing.folded").unwrap();
     let (chrome_layer, guard_chrome) = ChromeLayerBuilder::new().build();
 
     tracing_subscriber::registry()
@@ -88,7 +88,7 @@ fn setup_global_subscriber() -> (impl Drop, impl Drop) {
         .with(flame_layer)
         .with(chrome_layer)
         .init();
-    (guard_falme, guard_chrome)
+    (guard_flame, guard_chrome)
 }
 
 fn main() {
