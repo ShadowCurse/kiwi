@@ -25,7 +25,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut ecs = World::default();
     let entities = (0..10000).map(|_| ecs.create()).collect::<Vec<_>>();
 
-    c.bench_function("components_add_remove", |b| b.iter(|| update(&mut ecs, &entities)));
+    c.bench_function("components_add_remove", |b| {
+        b.iter(|| update(&mut ecs, &entities))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
