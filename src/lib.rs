@@ -2,6 +2,7 @@
 #![feature(const_type_name)]
 #![feature(const_type_id)]
 #![feature(concat_idents)]
+#![feature(allocator_api)]
 #![feature(fn_traits)]
 
 pub mod archetype;

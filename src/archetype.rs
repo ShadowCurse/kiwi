@@ -1,9 +1,11 @@
+use std::alloc::{Allocator, Global};
 use std::any::TypeId;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 
 use crate::component::Component;
+use crate::query::QueryCache;
 use crate::sparse_set::SparseSet;
 use crate::utils::type_traits::TypeInfo;
 
@@ -150,6 +152,18 @@ impl Archetypes {
     {
         self.archetypes_trie.query_ids(ids)
     }
+
+    #[tracing::instrument(skip_all)]
+    pub fn query_ids_with_cache<'a, 'b>(
+        &'a self,
+        ids: &'static [TypeId],
+        cache: &'a QueryCache,
+    ) -> impl Iterator<Item = ArchetypeId> + 'a
+    where
+        'b: 'a,
+    {
+        self.archetypes_trie.query_ids_with_cache(ids, cache)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -198,6 +212,15 @@ impl ArchetypesTrie {
         ids: &'static [TypeId],
     ) -> impl Iterator<Item = ArchetypeId> + 'a {
         ArchetypesTrieQueryIterator::new(&self.root_nodes, ids)
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn query_ids_with_cache<'a>(
+        &'a self,
+        ids: &'static [TypeId],
+        cache: &'a QueryCache,
+    ) -> impl Iterator<Item = ArchetypeId> + 'a {
+        ArchetypesTrieQueryIterator::new_in(&self.root_nodes, ids, &cache.allocator)
     }
 
     #[tracing::instrument(skip_all)]
@@ -315,13 +338,14 @@ struct ArchetypesTrieQueryIteratorEntry<'a> {
 }
 
 #[derive(Debug)]
-struct ArchetypesTrieQueryIterator<'a, 'b> {
-    entries: VecDeque<ArchetypesTrieQueryIteratorEntry<'a>>,
+pub struct ArchetypesTrieQueryIterator<'a, 'b, A: Allocator = Global> {
+    entries: VecDeque<ArchetypesTrieQueryIteratorEntry<'a>, A>,
     components_ids: &'b [TypeId],
-    found_nodes: VecDeque<&'a ArchetypeNode>,
+    found_nodes: VecDeque<&'a ArchetypeNode, A>,
 }
 
 impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
+    #[tracing::instrument(skip_all)]
     pub fn new(initial_nodes: &'a [ArchetypeNode], components_ids: &'static [TypeId]) -> Self {
         let entries = initial_nodes
             .iter()
@@ -336,9 +360,30 @@ impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
             found_nodes: VecDeque::new(),
         }
     }
+
+    #[tracing::instrument(skip_all)]
+    pub fn new_in<'alloc, A: Allocator>(
+        initial_nodes: &'a [ArchetypeNode],
+        components_ids: &'static [TypeId],
+        allocator: &'alloc A,
+    ) -> ArchetypesTrieQueryIterator<'a, 'b, &'alloc A> {
+        let mut entries = VecDeque::new_in(allocator);
+        entries.reserve(initial_nodes.len());
+        for node in initial_nodes.iter() {
+            entries.push_back(ArchetypesTrieQueryIteratorEntry {
+                node,
+                component_index: 0,
+            });
+        }
+        ArchetypesTrieQueryIterator::<'a, 'b, &'alloc A> {
+            entries,
+            components_ids,
+            found_nodes: VecDeque::new_in(allocator),
+        }
+    }
 }
 
-impl Iterator for ArchetypesTrieQueryIterator<'_, '_> {
+impl<A: Allocator> Iterator for ArchetypesTrieQueryIterator<'_, '_, A> {
     type Item = ArchetypeId;
 
     fn next(&mut self) -> Option<Self::Item> {

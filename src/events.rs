@@ -50,9 +50,13 @@ pub struct EventReaderFetch<E: Event> {
 }
 
 impl<E: Event> SystemParameterFetch for EventReaderFetch<E> {
-    type Item<'a> = EventReader<'a, E>;
+    type Item<'world, 'cache> = EventReader<'world, E>;
+    type Cache = ();
 
-    fn fetch(world: &mut World) -> Self::Item<'_> {
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        _: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache> {
         Self::Item {
             events: world
                 .get_resource::<Events<E>>()
@@ -90,9 +94,13 @@ pub struct EventWriterFetch<E: Event> {
 }
 
 impl<E: Event> SystemParameterFetch for EventWriterFetch<E> {
-    type Item<'a> = EventWriter<'a, E>;
+    type Item<'world, 'cache> = EventWriter<'world, E>;
+    type Cache = ();
 
-    fn fetch(world: &mut World) -> Self::Item<'_> {
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        _: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache> {
         Self::Item {
             events: world
                 .get_resource_mut::<Events<E>>()

@@ -11,13 +11,21 @@ pub trait SystemParameter: Sized {
 }
 
 pub trait SystemParameterFetch {
-    type Item<'a>: SystemParameter<Fetch = Self>;
+    type Item<'world, 'cache>: SystemParameter<Fetch = Self>;
+    type Cache: SystemParameterCache;
 
-    fn fetch(world: &mut World) -> Self::Item<'_>;
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        cache: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache>;
 }
 
-pub type SystemParameterItem<'w, P> =
-    <<P as SystemParameter>::Fetch as SystemParameterFetch>::Item<'w>;
+pub trait SystemParameterCache {
+    fn empty() -> Self;
+}
+
+pub type SystemParameterItem<'world, 'cache, P> =
+    <<P as SystemParameter>::Fetch as SystemParameterFetch>::Item<'world, 'cache>;
 
 pub trait IntoSystem<Params> {
     type Output: System;
@@ -103,14 +111,15 @@ where
     fn into_system(self) -> Self::Output {
         Self::Output {
             system: self,
+            cache: <<P as SystemParameter>::Fetch as SystemParameterFetch>::Cache::empty(),
             params: PhantomData,
         }
     }
 }
 
-#[derive(Debug)]
 pub struct FunctionSystem<S, Params: SystemParameter> {
     system: S,
+    cache: <<Params as SystemParameter>::Fetch as SystemParameterFetch>::Cache,
     params: PhantomData<Params>,
 }
 
@@ -121,7 +130,7 @@ where
 {
     #[tracing::instrument(skip_all)]
     fn run(&mut self, ecs: &mut World) {
-        let params = P::Fetch::fetch(ecs);
+        let params = P::Fetch::fetch(ecs, &self.cache);
         self.system.run(params);
     }
 }
@@ -162,17 +171,33 @@ impl_system_param_func!(P1, P2, P3, P4, P5, P6);
 impl_system_param_func!(P1, P2, P3, P4, P5, P6, P7);
 
 macro_rules! impl_system_param_tuple {
-    ($($t:ident),*) => {
+    ($(($t:ident, $i:tt)),*) => {
         impl<$($t),*> SystemParameterFetch for ($($t),*,)
         where $($t: SystemParameterFetch),*,
         {
-            type Item<'a> = (
-                $($t::Item<'a>),*,
+            type Item<'world, 'cache> = (
+                $($t::Item<'world, 'cache>),*,
             );
-
-            fn fetch(ecs: &mut World) -> Self::Item<'_> {
+            type Cache = (
+                $($t::Cache),*,
+            );
+            fn fetch<'world, 'cache>(
+                ecs: &'world mut World,
+                cache: &'cache <Self as SystemParameterFetch>::Cache
+            ) -> Self::Item<'world, 'cache> {
                 (
-                    $($t::fetch(unsafe {  &mut *(ecs as *mut World) })),*
+                    $($t::fetch(unsafe {  &mut *(ecs as *mut World) }, &cache.$i )),*
+                    ,
+                )
+            }
+        }
+
+        impl<$($t),*> SystemParameterCache for ($($t),*,)
+        where $($t: SystemParameterCache),*,
+        {
+            fn empty() -> Self {
+                (
+                    $($t::empty()),*
                     ,
                 )
             }
@@ -187,24 +212,39 @@ macro_rules! impl_system_param_tuple {
 }
 
 impl SystemParameter for () {
-    type Fetch = TupleFetch;
+    type Fetch = ();
 }
 
-#[derive(Debug)]
-pub struct TupleFetch;
-impl SystemParameterFetch for TupleFetch {
-    type Item<'a> = ();
+impl SystemParameterFetch for () {
+    type Item<'world, 'cache> = ();
+    type Cache = ();
 
-    fn fetch(_ecs: &'_ mut World) -> Self::Item<'_> {}
+    fn fetch<'world, 'cache>(
+        _ecs: &'world mut World,
+        _cache: &'cache (),
+    ) -> Self::Item<'world, 'cache> {
+    }
 }
 
-impl_system_param_tuple!(P1);
-impl_system_param_tuple!(P1, P2);
-impl_system_param_tuple!(P1, P2, P3);
-impl_system_param_tuple!(P1, P2, P3, P4);
-impl_system_param_tuple!(P1, P2, P3, P4, P5);
-impl_system_param_tuple!(P1, P2, P3, P4, P5, P6);
-impl_system_param_tuple!(P1, P2, P3, P4, P5, P6, P7);
+impl SystemParameterCache for () {
+    fn empty() -> Self {}
+}
+
+impl_system_param_tuple!((P1, 0));
+impl_system_param_tuple!((P1, 0), (P2, 1));
+impl_system_param_tuple!((P1, 0), (P2, 1), (P3, 2));
+impl_system_param_tuple!((P1, 0), (P2, 1), (P3, 2), (P4, 3));
+impl_system_param_tuple!((P1, 0), (P2, 1), (P3, 2), (P4, 3), (P5, 4));
+impl_system_param_tuple!((P1, 0), (P2, 1), (P3, 2), (P4, 3), (P5, 4), (P6, 5));
+impl_system_param_tuple!(
+    (P1, 0),
+    (P2, 1),
+    (P3, 2),
+    (P4, 3),
+    (P5, 4),
+    (P6, 5),
+    (P7, 6)
+);
 
 #[cfg(test)]
 mod test {
@@ -214,8 +254,12 @@ mod test {
         ($fetch:ident, $t:tt) => {
             pub struct $fetch;
             impl SystemParameterFetch for $fetch {
-                type Item<'a> = $t;
-                fn fetch(_: &'_ mut World) -> Self::Item<'_> {
+                type Item<'world, 'cache> = $t;
+                type Cache = ();
+                fn fetch<'world, 'cache>(
+                    _: &'world mut World,
+                    _: &'cache Self::Cache,
+                ) -> Self::Item<'world, 'cache> {
                     Default::default()
                 }
             }

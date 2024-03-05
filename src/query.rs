@@ -1,30 +1,32 @@
 use std::marker::PhantomData;
 
+use blink_alloc::BlinkAlloc;
+
 use crate::{
     component::ComponentTuple,
-    system::{SystemParameter, SystemParameterFetch},
+    system::{SystemParameter, SystemParameterCache, SystemParameterFetch},
     world::World,
 };
 
-#[derive(Debug)]
-pub struct Query<'world, T, const L: usize>
+pub struct Query<'world, 'cache, T, const L: usize>
 where
     T: ComponentTuple<L> + 'static,
 {
     world: &'world World,
+    cache: &'cache <QueryFetch<T, L> as SystemParameterFetch>::Cache,
     phantom: PhantomData<T>,
 }
 
-impl<'ecs, T, const L: usize> Query<'ecs, T, L>
+impl<'world, 'cache, T, const L: usize> Query<'world, 'cache, T, L>
 where
     T: ComponentTuple<L>,
 {
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
-        self.world.query::<T, L>()
+        self.world.query_with_cache::<T, L>(&self.cache)
     }
 }
 
-impl<'a, T, const L: usize> SystemParameter for Query<'a, T, L>
+impl<'world, 'cache, T, const L: usize> SystemParameter for Query<'world, 'cache, T, L>
 where
     T: ComponentTuple<L>,
 {
@@ -43,12 +45,29 @@ impl<T, const L: usize> SystemParameterFetch for QueryFetch<T, L>
 where
     T: ComponentTuple<L>,
 {
-    type Item<'a> = Query<'a, T, L>;
+    type Item<'world, 'cache> = Query<'world, 'cache, T, L>;
+    type Cache = QueryCache;
 
-    fn fetch(world: &mut World) -> Self::Item<'_> {
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        cache: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache> {
         Self::Item {
             world,
+            cache,
             phantom: PhantomData,
+        }
+    }
+}
+
+pub struct QueryCache {
+    pub allocator: BlinkAlloc,
+}
+
+impl SystemParameterCache for QueryCache {
+    fn empty() -> Self {
+        Self {
+            allocator: BlinkAlloc::new(),
         }
     }
 }

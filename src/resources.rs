@@ -54,9 +54,13 @@ impl<T> SystemParameterFetch for ResFetch<T>
 where
     T: Resource,
 {
-    type Item<'a> = Res<'a, T>;
+    type Item<'world, 'cache> = Res<'world, T>;
+    type Cache = ();
 
-    fn fetch(world: &mut World) -> Self::Item<'_> {
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        _: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache> {
         Self::Item {
             world,
             phantom: PhantomData,
@@ -101,9 +105,13 @@ impl<T> SystemParameterFetch for ResMutFetch<T>
 where
     T: Resource,
 {
-    type Item<'a> = ResMut<'a, T>;
+    type Item<'world, 'cache> = ResMut<'world, T>;
+    type Cache = ();
 
-    fn fetch(world: &mut World) -> Self::Item<'_> {
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        _: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache> {
         Self::Item {
             world,
             phantom: PhantomData,

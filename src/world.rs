@@ -4,7 +4,8 @@ use std::ops::{Deref, DerefMut};
 use crate::archetype::{ArchetypeId, ArchetypeInfo, Archetypes};
 use crate::component::{Component, ComponentTuple};
 use crate::entity::{Entity, EntityGenerator};
-use crate::events::{Events, Event};
+use crate::events::{Event, Events};
+use crate::query::QueryCache;
 use crate::resources::{Resource, Resources};
 use crate::system::{SystemParameter, SystemParameterFetch};
 use crate::table::{TableId, TableStorage};
@@ -244,6 +245,22 @@ impl World {
 
         self.storage.query::<_, CT, L>(table_id_iter)
     }
+
+    #[tracing::instrument(skip_all)]
+    pub fn query_with_cache<'a, CT, const L: usize>(
+        &'a self,
+        cache: &'a QueryCache,
+    ) -> impl Iterator<Item = CT> + 'a
+    where
+        CT: ComponentTuple<L>,
+    {
+        let table_id_iter = self
+            .archetypes
+            .query_ids_with_cache(&CT::SORTED_IDS, cache)
+            .map(|arch_id| self.archetype_to_table[&arch_id]);
+
+        self.storage.query::<_, CT, L>(table_id_iter)
+    }
 }
 
 #[derive(Debug)]
@@ -261,15 +278,20 @@ impl Deref for WorldRef<'_> {
 
 impl SystemParameter for WorldRef<'_> {
     type Fetch = WorldRefFetch;
+    // type Cache = ();
 }
 
 #[derive(Debug)]
 pub struct WorldRefFetch;
 
 impl SystemParameterFetch for WorldRefFetch {
-    type Item<'a> = WorldRef<'a>;
+    type Item<'world, 'cache> = WorldRef<'world>;
+    type Cache = ();
 
-    fn fetch(world: &mut World) -> Self::Item<'_> {
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        _: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache> {
         Self::Item { world }
     }
 }
@@ -295,15 +317,20 @@ impl DerefMut for WorldRefMut<'_> {
 
 impl SystemParameter for WorldRefMut<'_> {
     type Fetch = WorldRefMutFetch;
+    // type Cache = ();
 }
 
 #[derive(Debug)]
 pub struct WorldRefMutFetch;
 
 impl SystemParameterFetch for WorldRefMutFetch {
-    type Item<'a> = WorldRefMut<'a>;
+    type Item<'world, 'cache> = WorldRefMut<'world>;
+    type Cache = ();
 
-    fn fetch(world: &mut World) -> Self::Item<'_> {
+    fn fetch<'world, 'cache>(
+        world: &'world mut World,
+        _: &'cache Self::Cache,
+    ) -> Self::Item<'world, 'cache> {
         Self::Item { world }
     }
 }
