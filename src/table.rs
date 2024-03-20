@@ -1,5 +1,4 @@
 use std::{
-    any::TypeId,
     collections::{hash_map::Iter, HashMap, HashSet, VecDeque},
     marker::PhantomData,
 };
@@ -10,6 +9,7 @@ use crate::{
     component::{Component, ComponentTuple},
     entity::Entity,
     sparse_set::SparseSet,
+    utils::types::TypeId,
 };
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -246,15 +246,14 @@ impl Table {
     }
 
     #[tracing::instrument(skip_all)]
-    fn get_component_as_slice(&self, entity: &Entity, type_id: &TypeId) -> &[u8] {
-        unsafe { self.columns[type_id].get_as_byte_slice(self.entities[entity]) }
+    fn get_component_as_slice(&self, entity: &Entity, componenet_id: &TypeId) -> &[u8] {
+        unsafe { self.columns[componenet_id].get_as_byte_slice(self.entities[entity]) }
     }
 
     #[tracing::instrument(skip_all)]
     pub fn get_component<C: Component>(&self, entity: &Entity) -> Result<&C, Error> {
         let line = self.entities[entity];
-        let type_id = TypeId::of::<C>();
-        match self.columns.get(&type_id) {
+        match self.columns.get(&C::ID) {
             Some(column) => {
                 // If column exist for the type
                 // then it is safe to add component of this type
@@ -267,8 +266,7 @@ impl Table {
     #[tracing::instrument(skip_all)]
     pub fn get_component_mut<C: Component>(&mut self, entity: &Entity) -> Result<&mut C, Error> {
         let line = self.entities[entity];
-        let type_id = TypeId::of::<C>();
-        match self.columns.get_mut(&type_id) {
+        match self.columns.get_mut(&C::ID) {
             Some(column) => {
                 // If column exist for the type
                 // then it is safe to add component of this type
@@ -281,11 +279,11 @@ impl Table {
     #[tracing::instrument(skip_all)]
     pub fn copy_line_from(&mut self, table: &Table, entity: &Entity) -> Result<(), Error> {
         let line = self.entities[entity];
-        for type_id in self.intersection(table).iter() {
+        for component_id in self.intersection(table).iter() {
             self.copy_component_from_slice(
-                type_id,
+                component_id,
                 line,
-                table.get_component_as_slice(entity, type_id),
+                table.get_component_as_slice(entity, component_id),
             )?;
         }
         Ok(())
@@ -301,11 +299,11 @@ impl Table {
     #[tracing::instrument(skip_all)]
     fn copy_component_from_slice(
         &mut self,
-        type_id: &TypeId,
+        componenet_id: &TypeId,
         line: usize,
         component: &[u8],
     ) -> Result<(), Error> {
-        match self.columns.get_mut(type_id) {
+        match self.columns.get_mut(componenet_id) {
             Some(column) => {
                 // #Safety
                 // We know that slice corresponce to correct type
@@ -323,8 +321,7 @@ impl Table {
         component: C,
     ) -> Result<(), Error> {
         let line = self.entities[entity];
-        let type_id = TypeId::of::<C>();
-        match self.columns.get_mut(&type_id) {
+        match self.columns.get_mut(&C::ID) {
             Some(column) => {
                 // If column exist for the type
                 // then it is safe to add component of this type
@@ -340,8 +337,7 @@ impl Table {
     #[tracing::instrument(skip_all)]
     pub fn drop_component<C: Component>(&mut self, entity: &Entity) -> Result<(), Error> {
         let line = self.entities[entity];
-        let type_id = TypeId::of::<C>();
-        match self.columns.get_mut(&type_id) {
+        match self.columns.get_mut(&C::ID) {
             Some(column) => {
                 // If column exist for the type
                 // then it is safe to add component of this type
@@ -412,7 +408,7 @@ mod test {
         let mut intersection = table1.intersection(&table2);
         intersection.sort_unstable();
 
-        let mut expected = vec![std::any::TypeId::of::<u8>(), std::any::TypeId::of::<u16>()];
+        let mut expected = vec![TypeId::of::<u8>(), TypeId::of::<u16>()];
         expected.sort_unstable();
         assert_eq!(intersection, expected);
     }

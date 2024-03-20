@@ -3,6 +3,7 @@ use kiwi::{
     query::Query,
     system::Systems,
     world::{World, WorldRefMut},
+    utils::types::TypeId,
 };
 
 #[derive(Debug)]
@@ -11,7 +12,9 @@ struct Position<const N: usize> {
     y: f32,
 }
 
-impl<const N: usize> Component for Position<N> {}
+impl<const N: usize> Component for Position<N> {
+    const ID: TypeId = TypeId::of::<Position<N>>();
+}
 
 #[derive(Debug)]
 struct Velocity<const N: usize> {
@@ -19,7 +22,9 @@ struct Velocity<const N: usize> {
     y: f32,
 }
 
-impl<const N: usize> Component for Velocity<N> {}
+impl<const N: usize> Component for Velocity<N> {
+    const ID: TypeId = TypeId::of::<Velocity<N>>();
+}
 
 macro_rules! setup_fn {
     ($name:ident, $($t:expr),*) => {
@@ -107,7 +112,7 @@ fn main() {
     systems.add_system(update_0_1_2);
     systems.add_system(update_0_1_2_3);
 
-    for _ in 0..500 {
+    for _ in 0..500000 {
         systems.run(&mut ecs);
     }
 }

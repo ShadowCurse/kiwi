@@ -1,7 +1,9 @@
 use kiwi::{
     component::Component,
+    impl_component,
     query::Query,
     system::Systems,
+    utils::types::TypeId,
     world::{World, WorldRefMut},
 };
 
@@ -11,7 +13,7 @@ struct Position {
     y: f32,
 }
 
-impl Component for Position {}
+impl_component!(Position);
 
 #[derive(Debug)]
 struct Velocity {
@@ -19,7 +21,7 @@ struct Velocity {
     y: f32,
 }
 
-impl Component for Velocity {}
+impl_component!(Velocity);
 
 fn setup(mut world: WorldRefMut) {
     let ball1 = world.create();

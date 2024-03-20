@@ -140,7 +140,7 @@ mod test {
 
         fn test_read_events(reader: EventReader<E>) {
             let sum = reader.iter().map(|e| e.i).sum::<u8>();
-            assert_eq!(sum, (0..10).sum());
+            assert_eq!(sum, (0..10).sum::<u8>());
         }
 
         let mut ecs = World::default();

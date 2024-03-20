@@ -1,4 +1,6 @@
-use kiwi::{component::Component, entity::Entity, world::World};
+use kiwi::{
+    component::Component, entity::Entity, impl_component, utils::types::TypeId, world::World,
+};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
@@ -8,7 +10,7 @@ struct Position {
     _y: f32,
 }
 
-impl Component for Position {}
+impl_component!(Position);
 
 fn update(world: &mut World, entities: &[Entity]) {
     for e in entities {

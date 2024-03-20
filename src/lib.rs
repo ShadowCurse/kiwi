@@ -1,9 +1,12 @@
 #![feature(associated_type_defaults)]
 #![feature(const_type_name)]
+#![feature(const_mut_refs)]
 #![feature(const_type_id)]
 #![feature(concat_idents)]
 #![feature(allocator_api)]
 #![feature(fn_traits)]
+#![allow(internal_features)]
+#![feature(core_intrinsics)]
 
 pub mod archetype;
 pub mod blobvec;

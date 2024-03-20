@@ -1,9 +1,9 @@
-use std::{any::TypeId, collections::HashMap, fmt::Debug, marker::PhantomData};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData};
 
 use crate::{
     blobvec::BlobVec,
     system::{SystemParameter, SystemParameterFetch},
-    utils::type_traits::TypeInfo,
+    utils::types::{TypeId, TypeInfo},
     world::World,
 };
 
@@ -143,7 +143,7 @@ impl Resources {
                 // Safe becaus blob has the correct type
                 unsafe { blob.push(resource) };
 
-                self.columns.insert(type_info.id, blob);
+                self.columns.insert(type_info.id.into(), blob);
             }
         }
     }

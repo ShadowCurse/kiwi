@@ -1,4 +1,4 @@
-use kiwi::{component::Component, world::World};
+use kiwi::{component::Component, impl_component, utils::types::TypeId, world::World};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
@@ -8,7 +8,7 @@ struct Position {
     _y: f32,
 }
 
-impl Component for Position {}
+impl_component!(Position);
 
 fn update() {
     let mut ecs = World::default();

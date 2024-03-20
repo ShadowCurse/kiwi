@@ -2,6 +2,7 @@ use kiwi::{
     component::Component,
     query::Query,
     system::{IntoSystem, System},
+    utils::types::TypeId,
     world::{World, WorldRefMut},
 };
 
@@ -13,7 +14,9 @@ struct Position<const N: usize> {
     y: f32,
 }
 
-impl<const N: usize> Component for Position<N> {}
+impl<const N: usize> Component for Position<N> {
+    const ID: TypeId = TypeId::of::<Position<N>>();
+}
 
 #[derive(Debug)]
 struct Velocity<const N: usize> {
@@ -21,7 +24,9 @@ struct Velocity<const N: usize> {
     y: f32,
 }
 
-impl<const N: usize> Component for Velocity<N> {}
+impl<const N: usize> Component for Velocity<N> {
+    const ID: TypeId = TypeId::of::<Velocity<N>>();
+}
 
 fn setup(mut world: WorldRefMut) {
     for _ in 0..10000 {

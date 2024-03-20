@@ -1,5 +1,4 @@
 use std::alloc::{Allocator, Global};
-use std::any::TypeId;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
@@ -7,7 +6,7 @@ use std::collections::{HashSet, VecDeque};
 use crate::component::Component;
 use crate::query::QueryCache;
 use crate::sparse_set::SparseSet;
-use crate::utils::type_traits::TypeInfo;
+use crate::utils::types::{TypeInfo, TypeId};
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
@@ -60,7 +59,7 @@ impl ArchetypeInfo {
     #[tracing::instrument(skip_all)]
     pub fn archetype(&self) -> Archetype<'static> {
         Archetype {
-            components: Cow::Owned(self.as_sorted_vec_of_type_ids()),
+            components: Cow::Owned(self.as_sorted_vec_of_component_ids()),
         }
     }
 
@@ -104,7 +103,7 @@ impl ArchetypeInfo {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn as_sorted_vec_of_type_ids(&self) -> Vec<TypeId> {
+    pub fn as_sorted_vec_of_component_ids(&self) -> Vec<TypeId> {
         let mut vec = self
             .components
             .iter()
@@ -437,7 +436,7 @@ impl<A: Allocator> Iterator for ArchetypesTrieQueryIterator<'_, '_, A> {
 
 #[cfg(test)]
 mod test {
-    use crate::component::ComponentTuple;
+    use crate::{component::ComponentTuple, impl_component};
 
     use super::*;
 
@@ -450,10 +449,10 @@ mod test {
     #[derive(Debug)]
     struct D {}
 
-    impl Component for A {}
-    impl Component for B {}
-    impl Component for C {}
-    impl Component for D {}
+    impl_component!(A);
+    impl_component!(B);
+    impl_component!(C);
+    impl_component!(D);
 
     #[test]
     fn archetype_create() {
@@ -579,9 +578,7 @@ mod test {
         let _ = arc.add_component::<D>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
-        let ids = trie
-            .query_ids(&<(&B, &C)>::SORTED_IDS)
-            .collect::<HashSet<_>>();
+        let ids = trie.query_ids(&<(&B, &C)>::SORTED_IDS).collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())

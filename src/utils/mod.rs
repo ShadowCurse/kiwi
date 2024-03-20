@@ -1,13 +1,15 @@
+use self::types::TypeId;
+
 pub mod flat_tuple;
 pub mod macros;
-pub mod type_traits;
+pub mod types;
 
 #[inline]
 pub const fn static_sort<const N: usize>(
-    mut values: [u128; N],
+    mut values: [TypeId; N],
     mut low: isize,
     mut high: isize,
-) -> [u128; N] {
+) -> [TypeId; N] {
     let range = high - low;
     if range <= 0 || range >= values.len() as isize {
         return values;
@@ -15,12 +17,12 @@ pub const fn static_sort<const N: usize>(
     loop {
         let mut i = low;
         let mut j = high;
-        let p = values[(low + ((high - low) >> 1)) as usize];
+        let p = values[(low + ((high - low) >> 1)) as usize].0;
         loop {
-            while values[i as usize] < p {
+            while values[i as usize].0 < p {
                 i += 1;
             }
-            while values[j as usize] > p {
+            while values[j as usize].0 > p {
                 j -= 1;
             }
             if i <= j {

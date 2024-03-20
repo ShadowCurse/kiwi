@@ -1,6 +1,11 @@
-use std::{any::TypeId, fmt::Debug};
+use std::fmt::Debug;
 
-use crate::{blobvec::BlobVec, count_tts, entity::Entity, utils::static_sort};
+use crate::{
+    blobvec::BlobVec,
+    count_tts,
+    entity::Entity,
+    utils::{static_sort, types::TypeId},
+};
 
 trait ComponentRef {
     type Component: Component;
@@ -30,11 +35,16 @@ where
     }
 }
 
-pub trait Component: Sized + Debug + 'static {}
+pub trait Component: Sized + Debug + 'static {
+    const ID: TypeId;
+}
 
+#[macro_export]
 macro_rules! impl_component {
     ($t:tt) => {
-        impl Component for $t {}
+        impl Component for $t {
+            const ID: TypeId = TypeId::of::<$t>();
+        }
     };
 }
 
@@ -71,26 +81,13 @@ macro_rules! impl_component_tuple {
                 ),*
             ];
 
-            // TODO
-            // Currently we transform TypeId to u128, but this is wrong
-            // Wait until TypId can be compared at compile time and change this mess
             const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids_u128: [u128; count_tts!($($t)*)] = [
+                let ids: [TypeId; count_tts!($($t)*)] = [
                     $(
-                        unsafe {
-                            std::mem::transmute::<_, _>(TypeId::of::<<$t as ComponentRef>::Component>())
-                        }
+                        TypeId::of::<<$t as ComponentRef>::Component>()
                     ),*
                 ];
-                let ids_u128 = static_sort(ids_u128, 0, count_tts!($($t)*) as isize - 1);
-                let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<<$t as ComponentRef>::Component>()),*];
-                let mut _index = 0;
-                $(
-                    let _ = TypeId::of::<$t>();
-                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u128[_index]) };
-                    _index += 1;
-                )*
-               ids_type_id
+                static_sort(ids, 0, count_tts!($($t)*) as isize - 1)
             };
 
             fn fetch(_entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
@@ -132,26 +129,13 @@ macro_rules! impl_component_tuple_with_entity {
                 ),*
             ];
 
-            // TODO
-            // Currently we transform TypeId to u128, but this is wrong
-            // Wait until TypId can be compared at compile time and change this mess
             const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids_u128: [u128; count_tts!($($t)*)] = [
+                let ids: [TypeId; count_tts!($($t)*)] = [
                     $(
-                        unsafe {
-                            std::mem::transmute::<_, _>(TypeId::of::<<$t as ComponentRef>::Component>())
-                        }
+                        TypeId::of::<<$t as ComponentRef>::Component>()
                     ),*
                 ];
-                let ids_u128 = static_sort(ids_u128, 0, count_tts!($($t)*) as isize - 1);
-                let mut ids_type_id: [TypeId; count_tts!($($t)*)] = [$(TypeId::of::<<$t as ComponentRef>::Component>()),*];
-                let mut _index = 0;
-                $(
-                    let _ = TypeId::of::<$t>();
-                    ids_type_id[_index] = unsafe { std::mem::transmute::<_, TypeId>(ids_u128[_index]) };
-                    _index += 1;
-                )*
-               ids_type_id
+                static_sort(ids, 0, count_tts!($($t)*) as isize - 1)
             };
 
             fn fetch(entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
@@ -184,8 +168,6 @@ impl_component_tuple_with_entity!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10);
 
 #[cfg(test)]
 mod test {
-    use std::any::TypeId;
-
     use super::*;
 
     #[test]
