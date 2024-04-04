@@ -20,7 +20,9 @@ pub struct TypeInfo {
 impl TypeInfo {
     pub const fn new<T: TypeDrop + 'static>() -> Self {
         let drop = if std::mem::needs_drop::<Self>() {
-            Some(unsafe { std::mem::transmute(&<Self as TypeDrop>::type_drop) })
+            Some(unsafe {
+                std::mem::transmute(<Self as TypeDrop>::type_drop as unsafe fn(*mut ()))
+            })
         } else {
             None
         };
