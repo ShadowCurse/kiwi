@@ -1,6 +1,6 @@
 use self::types::TypeId;
 
-pub mod flat_tuple;
+// pub mod flat_tuple;
 pub mod macros;
 pub mod types;
 

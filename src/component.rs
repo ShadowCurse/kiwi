@@ -2,9 +2,8 @@ use std::fmt::Debug;
 
 use crate::{
     blobvec::BlobVec,
-    count_tts,
     entity::Entity,
-    utils::{static_sort, types::TypeId},
+    utils::{macros::count, static_sort, types::TypeId},
 };
 
 trait ComponentRef {
@@ -71,26 +70,26 @@ pub trait ComponentTuple<const L: usize>: Sized + Debug + 'static {
 
 macro_rules! impl_component_tuple {
     ($($t:ident),*) => {
-        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for ($($t,)*)
+        impl<$($t),*> ComponentTuple<{count!($($t)*)}> for ($($t,)*)
         where
             $($t: Debug + 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
-            const IDS: [TypeId; count_tts!($($t)*)] = [
+            const IDS: [TypeId; count!($($t)*)] = [
                 $(
                     TypeId::of::<<$t as ComponentRef>::Component>()
                 ),*
             ];
 
-            const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids: [TypeId; count_tts!($($t)*)] = [
+            const SORTED_IDS: [TypeId; count!($($t)*)] = {
+                let ids: [TypeId; count!($($t)*)] = [
                     $(
                         TypeId::of::<<$t as ComponentRef>::Component>()
                     ),*
                 ];
-                static_sort(ids, 0, count_tts!($($t)*) as isize - 1)
+                static_sort(ids, 0, count!($($t)*) as isize - 1)
             };
 
-            fn fetch(_entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
+            fn fetch(_entity: Entity, columns: &[&BlobVec; {count!($($t)*)}], line: usize) -> Self {
                 let mut _index = 0;
                 (
                     $(
@@ -119,26 +118,26 @@ impl_component_tuple!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10);
 
 macro_rules! impl_component_tuple_with_entity {
     ($($t:ident),*) => {
-        impl<$($t),*> ComponentTuple<{count_tts!($($t)*)}> for (Entity, $($t,)*)
+        impl<$($t),*> ComponentTuple<{count!($($t)*)}> for (Entity, $($t,)*)
         where
             $($t: Debug + 'static, $t: ComponentRef, <$t as ComponentRef>::Component: Component),*,
         {
-            const IDS: [TypeId; count_tts!($($t)*)] = [
+            const IDS: [TypeId; count!($($t)*)] = [
                 $(
                     TypeId::of::<<$t as ComponentRef>::Component>()
                 ),*
             ];
 
-            const SORTED_IDS: [TypeId; count_tts!($($t)*)] = {
-                let ids: [TypeId; count_tts!($($t)*)] = [
+            const SORTED_IDS: [TypeId; count!($($t)*)] = {
+                let ids: [TypeId; count!($($t)*)] = [
                     $(
                         TypeId::of::<<$t as ComponentRef>::Component>()
                     ),*
                 ];
-                static_sort(ids, 0, count_tts!($($t)*) as isize - 1)
+                static_sort(ids, 0, count!($($t)*) as isize - 1)
             };
 
-            fn fetch(entity: Entity, columns: &[&BlobVec; {count_tts!($($t)*)}], line: usize) -> Self {
+            fn fetch(entity: Entity, columns: &[&BlobVec; {count!($($t)*)}], line: usize) -> Self {
                 let mut _index = 0;
                 (
                     entity,
