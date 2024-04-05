@@ -26,25 +26,31 @@ thiserror = "1.0.40"
 tracing = "0.1.37"
 
 [dev-dependencies]
-criterion = "0.5.1"
+# examples
 tracing-subscriber = "0.3"
 tracing-flame = "0.2.0"
 tracing-chrome = "0.7.1"
 
-[[bench]]
-name = "iter_simple"
-harness = false
+# benches
+criterion = "0.5.1"
+
+# benches utils
+cgmath = { version = "0.18", features = ["serde"] }
+rayon = "^1.5"
+
+# other ecs
+apecs = "0.8.1"
+bevy_ecs = { version = "0.13", features = ["multi-threaded"] }
+bevy_tasks = "0.13"
+hecs = { version = "0.10", features = ["column-serialize", "row-serialize"] }
+legion = "0.4"
+planck_ecs = { version = "1.2", features = ["parallel"] }
+shipyard = "0.6"
+specs = {version = "0.20", features = ["serde"] }
+specs-derive = "0.4.1"
 
 [[bench]]
-name = "iter_wide"
-harness = false
-
-[[bench]]
-name = "components_add_remove"
-harness = false
-
-[[bench]]
-name = "components_insert"
+name = "benchmarks"
 harness = false
 
 [[example]]
