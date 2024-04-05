@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use blink_alloc::BlinkAlloc;
+use bumpalo::Bump;
 
 use crate::{
     component::ComponentTuple,
@@ -22,7 +22,7 @@ where
     T: ComponentTuple<L>,
 {
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
-        self.world.query_with_cache::<T, L>(&self.cache)
+        self.world.query_with_cache::<T, L>(self.cache)
     }
 }
 
@@ -61,13 +61,13 @@ where
 }
 
 pub struct QueryCache {
-    pub allocator: BlinkAlloc,
+    pub allocator: Bump,
 }
 
 impl SystemParameterCache for QueryCache {
     fn empty() -> Self {
         Self {
-            allocator: BlinkAlloc::new(),
+            allocator: Bump::new(),
         }
     }
 }
