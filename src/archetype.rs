@@ -6,7 +6,7 @@ use std::collections::{HashSet, VecDeque};
 use crate::component::Component;
 use crate::query::QueryCache;
 use crate::sparse_set::SparseSet;
-use crate::utils::types::{TypeInfo, TypeId};
+use crate::utils::types::{TypeId, TypeInfo};
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
@@ -361,11 +361,11 @@ impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn new_in<'alloc, A: Allocator>(
+    pub fn new_in<A: Allocator + Copy>(
         initial_nodes: &'a [ArchetypeNode],
         components_ids: &'static [TypeId],
-        allocator: &'alloc A,
-    ) -> ArchetypesTrieQueryIterator<'a, 'b, &'alloc A> {
+        allocator: A,
+    ) -> ArchetypesTrieQueryIterator<'a, 'b, A> {
         let mut entries = VecDeque::new_in(allocator);
         entries.reserve(initial_nodes.len());
         for node in initial_nodes.iter() {
@@ -374,7 +374,7 @@ impl<'a, 'b> ArchetypesTrieQueryIterator<'a, 'b> {
                 component_index: 0,
             });
         }
-        ArchetypesTrieQueryIterator::<'a, 'b, &'alloc A> {
+        ArchetypesTrieQueryIterator::<'a, 'b, A> {
             entries,
             components_ids,
             found_nodes: VecDeque::new_in(allocator),
@@ -578,7 +578,9 @@ mod test {
         let _ = arc.add_component::<D>();
         assert!(trie.insert(arc.archetype(), some_arc_id).is_ok());
 
-        let ids = trie.query_ids(&<(&B, &C)>::SORTED_IDS).collect::<HashSet<_>>();
+        let ids = trie
+            .query_ids(&<(&B, &C)>::SORTED_IDS)
+            .collect::<HashSet<_>>();
         assert_eq!(
             ids,
             HashSet::from_iter(vec![ArchetypeId(0), ArchetypeId(1)].into_iter())

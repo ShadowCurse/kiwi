@@ -4,9 +4,9 @@
 #![feature(const_type_id)]
 #![feature(concat_idents)]
 #![feature(allocator_api)]
-#![feature(fn_traits)]
 #![allow(internal_features)]
 #![feature(core_intrinsics)]
+#![feature(fn_traits)]
 
 pub mod archetype;
 pub mod blobvec;
